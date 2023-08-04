@@ -1,4 +1,4 @@
-use backgammon::Backgammon;
+pub use backgammon::Backgammon;
 
 pub mod backgammon;
 
