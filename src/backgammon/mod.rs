@@ -1,12 +1,37 @@
-use std::{cmp, ops::Range, vec};
+use std::{cmp, fmt, ops::Range, vec};
 // (the board itself, pieces_hit, pieces_collected)
 type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
 type Actions = Vec<(i8, i8)>;
 
-struct ActionNode {
+pub struct ActionNode {
     value: (i8, i8),
     children: Vec<ActionNode>,
+}
+
+impl fmt::Display for ActionNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.format_tree(f, "", true)
+    }
+}
+
+impl ActionNode {
+    fn format_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
+        let node_prefix = if is_last { "└── " } else { "├── " };
+        let child_prefix = if is_last { "    " } else { "│   " };
+
+        // Print the current node's value
+        writeln!(f, "{}{}{:?}", prefix, node_prefix, self.value)?;
+
+        // Recursively print the children
+        for (index, child) in self.children.iter().enumerate() {
+            let is_last_child = index == self.children.len() - 1;
+            let new_prefix = format!("{}{}", prefix, child_prefix);
+            child.format_tree(f, &new_prefix, is_last_child)?;
+        }
+
+        Ok(())
+    }
 }
 
 pub struct Backgammon {
@@ -73,21 +98,19 @@ impl Backgammon {
                 } else {
                     state.1 .1 -= 1;
                 }
-            } else {
-                if state.0[to as usize] == player * -1 {
-                    // Hitting the opponent's checker
-                    state.0[to as usize] = player;
-                    state.0[from as usize] -= player;
-                    if player == -1 {
-                        state.1 .1 += 1;
-                    } else {
-                        state.1 .0 += 1;
-                    }
+            } else if state.0[to as usize] == player * -1 {
+                // Hitting the opponent's checker
+                state.0[to as usize] = player;
+                state.0[from as usize] -= player;
+                if player == -1 {
+                    state.1 .1 += 1;
                 } else {
-                    // Moving a checker from one position to another
-                    state.0[to as usize] += player;
-                    state.0[from as usize] -= player;
+                    state.1 .0 += 1;
                 }
+            } else {
+                // Moving a checker from one position to another
+                state.0[to as usize] += player;
+                state.0[from as usize] -= player;
             }
         }
         state
@@ -130,13 +153,13 @@ impl Backgammon {
         let num_pieces_hit = Self::get_pieces_hit(state, player);
         // Return if there is a hit piece, no other move can be made without all pieces in-game
         if num_pieces_hit > 0 {
-            return Self::_get_entry_moves(moves, state, player);
+            return Self::get_entry_moves(moves, state, player);
         } else {
-            return Self::_get_normal_moves(moves, state, player);
+            return Self::get_normal_moves(moves, state, player);
         }
     }
 
-    fn _get_normal_moves(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
+    pub fn get_normal_moves(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
         let (board, _, _) = state;
         let num_pieces_hit = Self::get_pieces_hit(state, player);
 
@@ -191,7 +214,12 @@ impl Backgammon {
         return trees;
     }
 
-    fn _get_entry_moves(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
+
+    pub fn get_entry_moves(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
+        if moves.is_empty() {
+            return vec![];
+        }
+        
         let (board, _, _) = state;
 
         let mut trees: Vec<ActionNode> = vec![];
