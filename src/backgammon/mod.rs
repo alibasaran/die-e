@@ -267,51 +267,45 @@ impl Backgammon {
     }
 
     pub fn get_entry_moves(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
-        if moves.is_empty() {
-            return vec![];
-        }
-
         let (board, _, _) = state;
 
         let mut trees: Vec<ActionNode> = vec![];
+        let mut possible_actions: Vec<(i8, (i8, i8))> = vec![];
 
-        let mut entry_moves: Actions = vec![];
         if player == -1 {
-            let range: Range<u8> = 0..6;
-            for i in range {
-                if board[23 - usize::from(i)] < 2 && (moves[0] == i || moves[1] == i) {
-                    entry_moves.push((-1, 23 - i as i8))
+            for m in moves.iter().map(|x| *x as i8) {
+                let point = 24 - m;
+                if board[point as usize] < 2 {
+                    possible_actions.push((m, (-1, point)));
                 }
-            }
-        } else {
-            let range: Range<u8> = 0..6;
-            for i in range {
-                if board[usize::from(i)] < 2 && (moves[0] == i || moves[1] == i) {
-                    entry_moves.push((-1, i as i8))
+            } 
+        } else if player == 1 {
+            for m in moves.iter().map(|x| *x as i8) {
+                let point =  m - 1;
+                if board[point as usize] > -2 {
+                    possible_actions.push((m, (-1, point)));
                 }
-            }
+            } 
         }
 
-        for entry_move in entry_moves.iter() {
+        // removes duplicate actions
+        possible_actions.sort_unstable();
+        possible_actions.dedup();
+
+        for action in possible_actions {
             let current_node = ActionNode {
-                value: *entry_move,
-                children: {
-                    let new_state = Self::get_next_state(state, vec![*entry_move], player);
-
-                    // Remove the move played from all moves
-                    let mut new_moves = moves.to_vec();
-                    let index_to_remove = new_moves
-                        .iter()
-                        .position(|&m| m == entry_move.1 as u8)
-                        .unwrap();
-                    new_moves.remove(index_to_remove);
-
-                    // return children
-                    Self::_get_action_trees(&mut new_moves, new_state, player)
-                },
+                value: action.1,
+                children: Self::_get_children_of_node_action(
+                    moves.to_vec(),
+                    action.0 as u8,
+                    action.1,
+                    state,
+                    player,
+                ),
             };
             trees.push(current_node)
         }
+
         return trees;
     }
 
