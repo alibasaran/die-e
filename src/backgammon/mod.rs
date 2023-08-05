@@ -1,4 +1,4 @@
-use std::{cmp, fmt, iter::repeat, ops::Range, vec};
+use std::{cmp, fmt, iter::repeat, ops::Range, vec, collections::HashSet};
 // (the board itself, pieces_hit, pieces_collected)
 type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
@@ -326,7 +326,15 @@ impl Backgammon {
         return Self::_get_action_trees(&mut new_moves, new_state, player);
     }
 
-    pub fn extract_sequences(node: &ActionNode) -> Vec<Vec<(i8, i8)>> {
+    pub fn extract_sequences_list(list: Vec<ActionNode>) -> Vec<Vec<(i8, i8)>> {
+        let mut sequences: Vec<Vec<(i8, i8)>> = vec![];
+        for action_node in list {
+            sequences.extend(Self::extract_sequences_node(&action_node));
+        }
+        return sequences;
+    }
+
+    pub fn extract_sequences_node(node: &ActionNode) -> Vec<Vec<(i8, i8)>> {
         Self::extract_sequences_helper(node, Vec::new())
     }
     
@@ -346,5 +354,24 @@ impl Backgammon {
         }
     
         sequences
+    }
+
+    pub fn remove_duplicate_states(initial_state: Board, sequences: Vec<Vec<(i8, i8)>>, player: i8) -> Vec<Vec<(i8, i8)>> {
+        let mut seen_states = HashSet::new();
+        let mut unique_sequences = Vec::new();
+
+        for sequence in sequences {
+            let mut current_state = initial_state.clone();
+            
+            for action in &sequence {
+                current_state = Self::get_next_state(current_state, vec![action.clone()], player);
+            }
+            
+            if seen_states.insert(current_state) {
+                unique_sequences.push(sequence);
+            }
+        }
+
+        unique_sequences
     }
 }
