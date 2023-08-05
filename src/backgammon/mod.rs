@@ -325,4 +325,26 @@ impl Backgammon {
         // return children
         return Self::_get_action_trees(&mut new_moves, new_state, player);
     }
+
+    pub fn extract_sequences(node: &ActionNode) -> Vec<Vec<(i8, i8)>> {
+        Self::extract_sequences_helper(node, Vec::new())
+    }
+    
+    fn extract_sequences_helper(node: &ActionNode, current_sequence: Vec<(i8, i8)>) -> Vec<Vec<(i8, i8)>> {
+        let mut sequences = Vec::new();
+    
+        let mut new_sequence = current_sequence.clone();
+        new_sequence.push(node.value);
+    
+        if node.children.is_empty() {
+            sequences.push(new_sequence);
+        } else {
+            for child in &node.children {
+                let child_sequences = Self::extract_sequences_helper(child, new_sequence.clone());
+                sequences.extend(child_sequences);
+            }
+        }
+    
+        sequences
+    }
 }
