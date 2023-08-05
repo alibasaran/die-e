@@ -176,9 +176,10 @@ impl Backgammon {
                 // Add points that are smaller than the current move
                 // Eg 6 can collect 5, if there is no pieces on the 6th point and there is a piece on 5
                 for m_idx in (0..point).rev() {
-                    let n_pieces_on_point = board[m_idx as usize];
-                    let left_sum: i8 = (m_idx..6).sum();
-                    if n_pieces_on_point < 0 && left_sum == 0 {
+                    let m_idx_usize = m_idx as usize;
+                    let n_pieces_on_point = board[m_idx_usize];
+                    let left_sum: i8 = board[m_idx_usize+1..6].iter().sum();
+                    if n_pieces_on_point < 0 && left_sum >= 0 {
                         possible_actions.push((m, (m_idx, -1)));
                         break;
                     }
@@ -192,9 +193,10 @@ impl Backgammon {
                     possible_actions.push((m, (point, -1)))
                 }
                 for m_idx in (24 - m)..=23 {
+                    let m_idx_usize = m_idx as usize;
                     // m - 2 because the point itself is included
-                    let n_pieces_on_point = board[m_idx as usize];
-                    let left_sum: i8 = (18..m_idx).sum();
+                    let n_pieces_on_point = board[m_idx_usize];
+                    let left_sum: i8 = board[18..m_idx_usize-1].iter().sum();
                     if n_pieces_on_point < 0 && left_sum == 0 {
                         possible_actions.push((m, (m_idx, -1)));
                         break;
@@ -222,8 +224,8 @@ impl Backgammon {
             }
         }
         // removes duplicate actions
-        // possible_actions.sort_unstable();
-        // possible_actions.dedup();
+        possible_actions.sort_unstable();
+        possible_actions.dedup();
 
         for action in possible_actions {
             let current_node = ActionNode {
