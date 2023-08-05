@@ -1,4 +1,4 @@
-use std::{cmp, fmt, ops::Range, vec};
+use std::{cmp, fmt, iter::repeat, ops::Range, vec};
 // (the board itself, pieces_hit, pieces_collected)
 type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
@@ -173,13 +173,32 @@ impl Backgammon {
                 if n_pieces_on_point < 0 {
                     possible_actions.push((m, (point, -1)))
                 }
+                // Add points that are smaller than the current move
+                // Eg 6 can collect 5, if there is no pieces on the 6th point and there is a piece on 5
+                for m_idx in (0..point).rev() {
+                    let n_pieces_on_point = board[m_idx as usize];
+                    let left_sum: i8 = (m_idx..6).sum();
+                    if n_pieces_on_point < 0 && left_sum == 0 {
+                        possible_actions.push((m, (m_idx, -1)));
+                        break;
+                    }
+                }
             }
         } else if player == 1 && Self::is_collectible(state, player) {
             for m in moves.iter().map(|x| *x as i8) {
-                let point = (24 - m) as i8;
+                let point = 24 - m;
                 let n_pieces_on_point = board[point as usize];
                 if n_pieces_on_point > 0 {
                     possible_actions.push((m, (point, -1)))
+                }
+                for m_idx in (24 - m)..=23 {
+                    // m - 2 because the point itself is included
+                    let n_pieces_on_point = board[m_idx as usize];
+                    let left_sum: i8 = (18..m_idx).sum();
+                    if n_pieces_on_point < 0 && left_sum == 0 {
+                        possible_actions.push((m, (m_idx, -1)));
+                        break;
+                    }
                 }
             }
         }
@@ -187,7 +206,11 @@ impl Backgammon {
         for m in moves.iter().map(|x| *x as i8) {
             for (point, n_pieces) in board.iter().enumerate().map(|x| (x.0 as i8, x.1)) {
                 // player == -1 && *n_pieces < 0, check if player -1 is going
-                if player == -1 && *n_pieces <= player && point - m >= 0 && board[(point - m) as usize] <= 1 {
+                if player == -1
+                    && *n_pieces <= player
+                    && point - m >= 0
+                    && board[(point - m) as usize] <= 1
+                {
                     possible_actions.push((m, (point as i8, (point - m) as i8)))
                 } else if player == 1
                     && *n_pieces >= player
@@ -198,6 +221,10 @@ impl Backgammon {
                 }
             }
         }
+        // removes duplicate actions
+        // possible_actions.sort_unstable();
+        // possible_actions.dedup();
+
         for action in possible_actions {
             let current_node = ActionNode {
                 value: action.1,
@@ -216,22 +243,22 @@ impl Backgammon {
 
     fn is_collectible(board: Board, player: i8) -> bool {
         if player == -1 {
-            if board.1.0 != 0 {
+            if board.1 .0 != 0 {
                 return false;
             }
             for i in 6..=23 {
                 if board.0[i] < 0 {
                     return false;
-                } 
+                }
             }
         } else if player == 1 {
-            if board.1.1 != 0 {
+            if board.1 .1 != 0 {
                 return false;
             }
             for i in 0..=17 {
                 if board.0[i] > 0 {
                     return false;
-                } 
+                }
             }
         }
         true
@@ -241,7 +268,7 @@ impl Backgammon {
         if moves.is_empty() {
             return vec![];
         }
-        
+
         let (board, _, _) = state;
 
         let mut trees: Vec<ActionNode> = vec![];
@@ -294,7 +321,6 @@ impl Backgammon {
         player: i8,
     ) -> Vec<ActionNode> {
         let new_state = Self::get_next_state(state, vec![action], player);
-
         // Remove the move played from all moves
         let mut new_moves = moves.to_vec();
         let index_to_remove = new_moves.iter().position(|&m| m == move_used).unwrap();
