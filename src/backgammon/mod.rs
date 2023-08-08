@@ -333,19 +333,19 @@ impl Backgammon {
         return Self::_get_action_trees(&mut new_moves, new_state, player);
     }
 
-    pub fn extract_sequences_list(list: Vec<ActionNode>) -> Vec<Vec<(i8, i8)>> {
-        let mut sequences: Vec<Vec<(i8, i8)>> = vec![];
+    pub fn extract_sequences_list(list: Vec<ActionNode>) -> Vec<Actions> {
+        let mut sequences: Vec<Actions> = vec![];
         for action_node in list {
             sequences.extend(Self::extract_sequences_node(&action_node));
         }
         return sequences;
     }
 
-    pub fn extract_sequences_node(node: &ActionNode) -> Vec<Vec<(i8, i8)>> {
+    pub fn extract_sequences_node(node: &ActionNode) -> Vec<Actions> {
         Self::extract_sequences_helper(node, Vec::new())
     }
     
-    fn extract_sequences_helper(node: &ActionNode, current_sequence: Vec<(i8, i8)>) -> Vec<Vec<(i8, i8)>> {
+    fn extract_sequences_helper(node: &ActionNode, current_sequence: Actions) -> Vec<Actions> {
         let mut sequences = Vec::new();
     
         let mut new_sequence = current_sequence.clone();
@@ -363,7 +363,7 @@ impl Backgammon {
         sequences
     }
 
-    pub fn remove_duplicate_states(initial_state: Board, sequences: Vec<Vec<(i8, i8)>>, player: i8) -> Vec<Vec<(i8, i8)>> {
+    pub fn remove_duplicate_states(initial_state: Board, sequences: Vec<Actions>, player: i8) -> Vec<Actions> {
         let mut seen_states = HashSet::new();
         let mut unique_sequences = Vec::new();
 
