@@ -225,3 +225,125 @@ mod get_next_state {
         assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
     }
 }
+
+mod get_normal_moves {
+    use die_e::backgammon::ActionNode;
+
+    use super::*;
+
+    mod player1 {
+        use super::*;
+
+        #[test]
+        fn it_should_work_for_single_move() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[20] = -1;
+            let moves = Backgammon::get_normal_moves(&vec![1], state, -1);
+            assert_eq!(moves[0].value, (20, 19));
+        }
+
+        #[test]
+        fn it_should_return_empty_vec_if_there_are_no_moves() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[20] = -1;
+            state.0[19] = 2;
+            let moves = Backgammon::get_normal_moves(&vec![1], state, -1);
+            assert!(moves.is_empty())
+        }
+        #[test]
+        fn it_should_work_for_multiple_moves() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[20] = -1;
+            let moves = Backgammon::get_normal_moves(&vec![1, 1], state, -1);
+            let tree = &moves[0];
+            assert_eq!(tree.value, (20, 19));
+            assert_eq!(tree.children[0].value, (19, 18));
+        }
+
+        #[test]
+        fn it_should_work_for_multiple_moves_multiple_possibilities() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[20] = -1;
+            let moves = Backgammon::get_normal_moves(&vec![2, 1], state, -1);
+            let tree1 = ActionNode {
+                value: (20, 19),
+                children: vec![ActionNode {
+                    value: (19, 17),
+                    children: vec![],
+                }],
+            };
+            let tree2 = ActionNode {
+                value: (20, 18),
+                children: vec![ActionNode {
+                    value: (18, 17),
+                    children: vec![],
+                }],
+            };
+            assert!(moves.len() == 2);
+            assert!(moves.contains(&tree1));
+            assert!(moves.contains(&tree2));
+        }
+    }
+
+    mod player2 {
+        use super::*;
+
+        #[test]
+        fn it_should_work_for_single_move() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[10] = 1;
+            let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+            assert_eq!(moves[0].value, (10, 11));
+        }
+
+        #[test]
+        fn it_should_return_empty_vec_if_there_are_no_moves() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[10] = 1;
+            state.0[11] = -2;
+            let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+            assert!(moves.is_empty())
+        }
+        #[test]
+        fn it_should_work_for_multiple_moves() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[10] = 1;
+            let moves = Backgammon::get_normal_moves(&vec![1, 1], state, 1);
+            let tree = &moves[0];
+            assert_eq!(tree.value, (10, 11));
+            assert_eq!(tree.children[0].value, (11, 12));
+        }
+
+        #[test]
+        fn it_should_work_for_multiple_moves_multiple_possibilities() {
+            let mut state = Backgammon::get_initial_state();
+            state.0 = [0; 24];
+            state.0[10] = 1;
+            let moves = Backgammon::get_normal_moves(&vec![2, 1], state, 1);
+            let tree1 = ActionNode {
+                value: (10, 11),
+                children: vec![ActionNode {
+                    value: (11, 13),
+                    children: vec![],
+                }],
+            };
+            let tree2 = ActionNode {
+                value: (10, 12),
+                children: vec![ActionNode {
+                    value: (12, 13),
+                    children: vec![],
+                }],
+            };
+            assert!(moves.len() == 2);
+            assert!(moves.contains(&tree1));
+            assert!(moves.contains(&tree2));
+        }
+    }
+}

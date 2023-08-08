@@ -5,8 +5,8 @@ type Board = ([i8; 24], (u8, u8), (u8, u8));
 type Actions = Vec<(i8, i8)>;
 
 pub struct ActionNode {
-    value: (i8, i8),
-    children: Vec<ActionNode>,
+    pub value: (i8, i8),
+    pub children: Vec<ActionNode>,
 }
 
 impl fmt::Display for ActionNode {
@@ -14,6 +14,13 @@ impl fmt::Display for ActionNode {
         self.format_tree(f, "", true)
     }
 }
+
+impl PartialEq for ActionNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value && self.children == other.children
+    }
+}
+
 
 impl ActionNode {
     fn format_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
