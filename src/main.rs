@@ -2,8 +2,9 @@ pub use backgammon::Backgammon;
 
 pub mod backgammon;
 
+#[cfg(not(tarpaulin_include))]
 fn main() {
-    let mut bg = Backgammon::new();
+    let bg = Backgammon::new();
 
     let normal_moves = Backgammon::get_normal_moves(&vec![6, 1], bg.board, 1);
     let all_sequences = Backgammon::extract_sequences_list(normal_moves);

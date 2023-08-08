@@ -287,6 +287,76 @@ mod get_normal_moves {
             assert!(moves.contains(&tree1));
             assert!(moves.contains(&tree2));
         }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_exact_move() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[0] = -1;
+            state.0 = board;
+
+            let moves = Backgammon::get_normal_moves(&vec![1], state, -1);
+            let expected = ActionNode {
+                value: (0, -1),
+                children: vec![],
+            };
+            assert_eq!(moves[0], expected);
+        }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_higher_move() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[0] = -1;
+            state.0 = board;
+
+            let moves = Backgammon::get_normal_moves(&vec![6], state, -1);
+            let expected = ActionNode {
+                value: (0, -1),
+                children: vec![],
+            };
+            assert_eq!(moves[0], expected);
+        }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_exact_moves() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[0] = -1;
+            board[5] = -1;
+            state.0 = board;
+
+            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, -1);
+            let expected = ActionNode {
+                value: (0, -1),
+                children: vec![ActionNode {
+                    value: (5, -1),
+                    children: vec![],
+                }],
+            };
+            // .contains because another possibility is the other way around
+            assert!(moves.contains(&expected));
+        }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_higher_moves() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[0] = -1;
+            board[4] = -1;
+            state.0 = board;
+
+            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, -1);
+            let expected = ActionNode {
+                value: (4, -1),
+                children: vec![ActionNode {
+                    value: (0, -1),
+                    children: vec![],
+                }],
+            };
+            // .contains because another possibility is the other way around
+            assert!(moves.contains(&expected));
+        }
     }
 
     mod player2 {
@@ -345,6 +415,118 @@ mod get_normal_moves {
             assert!(moves.contains(&tree1));
             assert!(moves.contains(&tree2));
         }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_exact_move() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[23] = 1;
+            state.0 = board;
+
+            let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+            let expected = ActionNode {
+                value: (23, -1),
+                children: vec![],
+            };
+            assert_eq!(moves[0], expected);
+        }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_higher_move() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[23] = 1;
+            state.0 = board;
+
+            let trees = Backgammon::get_normal_moves(&vec![6], state, 1);
+            let expected = ActionNode {
+                value: (23, -1),
+                children: vec![],
+            };
+            assert!(!trees.is_empty());
+            assert_eq!(trees[0], expected);
+        }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_exact_moves() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[23] = 1;
+            board[18] = 1;
+            state.0 = board;
+
+            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, 1);
+            let expected = ActionNode {
+                value: (23, -1),
+                children: vec![ActionNode {
+                    value: (18, -1),
+                    children: vec![],
+                }],
+            };
+            // .contains because another possibility is the other way around
+            assert!(moves.contains(&expected));
+        }
+
+        #[test]
+        fn it_should_return_collect_moves_when_collectible_higher_moves() {
+            let mut state = Backgammon::get_initial_state();
+            let mut board = [0; 24];
+            board[23] = 1;
+            board[20] = 1;
+            state.0 = board;
+
+            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, 1);
+            let expected = ActionNode {
+                value: (20, -1),
+                children: vec![ActionNode {
+                    value: (23, -1),
+                    children: vec![],
+                }],
+            };
+            // .contains because another possibility is the other way around
+            assert!(moves.contains(&expected));
+        }
+    }
+}
+
+mod is_collectible {
+    use super::*;
+
+    #[test]
+    fn returns_false_when_not_collectible() {
+        let state = Backgammon::get_initial_state();
+        let collectable_p1 = Backgammon::is_collectible(state, -1);
+        let collectable_p2 = Backgammon::is_collectible(state, 1);
+        assert!(!collectable_p1);
+        assert!(!collectable_p2);
+    }
+
+    #[test]
+    fn returns_true_when_collectable() {
+        let mut state = Backgammon::get_initial_state();
+        let mut board = [0; 24];
+        board[0] = -1;
+        board[23] = 1;
+        state.0 = board;
+
+        let collectable_p1 = Backgammon::is_collectible(state, -1);
+        let collectable_p2 = Backgammon::is_collectible(state, 1);
+        assert!(collectable_p1);
+        assert!(collectable_p2);
+    }
+
+    #[test]
+    fn returns_false_when_piece_on_bar() {
+        let mut state = Backgammon::get_initial_state();
+        let mut board = [0; 24];
+        board[0] = -1;
+        board[23] = 1;
+        state.0 = board;
+        state.1 = (1, 1);
+        let collectable_p1 = Backgammon::is_collectible(state, -1);
+        let collectable_p2 = Backgammon::is_collectible(state, 1);
+        assert!(!collectable_p1);
+        assert!(!collectable_p2);
     }
 }
 
@@ -359,7 +541,10 @@ mod extract_sequences_node {
         state.0[10] = 1;
         let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(10, 11)]];
-        assert_eq!(Backgammon::extract_sequences_node(&moves.get(0).unwrap()), expected);
+        assert_eq!(
+            Backgammon::extract_sequences_node(&moves.get(0).unwrap()),
+            expected
+        );
     }
 
     #[test]
@@ -381,7 +566,10 @@ mod extract_sequences_node {
         state.0[23] = -1;
         let moves = Backgammon::get_normal_moves(&vec![1, 1], state, -1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 18)], vec![(20, 19), (23, 22)]];
-        assert_eq!(Backgammon::extract_sequences_node(moves.get(0).unwrap()), expected);
+        assert_eq!(
+            Backgammon::extract_sequences_node(moves.get(0).unwrap()),
+            expected
+        );
     }
 }
 
@@ -415,7 +603,7 @@ mod extract_sequences_list {
         state.0 = [0; 24];
         state.0[20] = -1;
         let moves = Backgammon::get_normal_moves(&vec![2, 1], state, -1);
-        let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 17)], vec![(20,18), (18, 17)]];
+        let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 17)], vec![(20, 18), (18, 17)]];
         assert_eq!(Backgammon::extract_sequences_list(moves), expected);
     }
 
@@ -427,8 +615,13 @@ mod extract_sequences_list {
         state.0[19] = 2;
         state.0[16] = -1;
         let moves = Backgammon::get_normal_moves(&vec![2, 1], state, -1);
-        let expected: Vec<Vec<(i8, i8)>> = vec![vec![(16, 15), (15, 13)], vec![(16, 15), (20, 18)], 
-            vec![(16, 14), (14, 13)], vec![(20, 18), (16, 15)], vec![(20, 18), (18, 17)]];
+        let expected: Vec<Vec<(i8, i8)>> = vec![
+            vec![(16, 15), (15, 13)],
+            vec![(16, 15), (20, 18)],
+            vec![(16, 14), (14, 13)],
+            vec![(20, 18), (16, 15)],
+            vec![(20, 18), (18, 17)],
+        ];
         assert!(moves.len() > 1);
         assert_eq!(Backgammon::extract_sequences_list(moves), expected);
     }
@@ -445,7 +638,10 @@ mod remove_duplicate_states {
         state.0[20] = -1;
         let sequences: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19)]];
         let expected = sequences.clone();
-        assert_eq!(Backgammon::remove_duplicate_states(state, sequences, -1), expected);
+        assert_eq!(
+            Backgammon::remove_duplicate_states(state, sequences, -1),
+            expected
+        );
     }
 
     #[test]
@@ -455,7 +651,10 @@ mod remove_duplicate_states {
         state.0[20] = -1;
         let sequences: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 18)]];
         let expected = sequences.clone();
-        assert_eq!(Backgammon::remove_duplicate_states(state, sequences, -1), expected);
+        assert_eq!(
+            Backgammon::remove_duplicate_states(state, sequences, -1),
+            expected
+        );
     }
 
     #[test]
@@ -463,9 +662,13 @@ mod remove_duplicate_states {
         let mut state = Backgammon::get_initial_state();
         state.0 = [0; 24];
         state.0[20] = -1;
-        let sequences: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 17)], vec![(20, 18), (18, 17)]];
+        let sequences: Vec<Vec<(i8, i8)>> =
+            vec![vec![(20, 19), (19, 17)], vec![(20, 18), (18, 17)]];
         let expected = vec![vec![(20, 19), (19, 17)]];
-        assert_eq!(Backgammon::remove_duplicate_states(state, sequences, -1), expected);
+        assert_eq!(
+            Backgammon::remove_duplicate_states(state, sequences, -1),
+            expected
+        );
     }
 
     #[test]
@@ -474,9 +677,13 @@ mod remove_duplicate_states {
         state.0 = [0; 24];
         state.0[20] = -1;
         state.0[19] = 1;
-        let sequences: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 17)], vec![(20, 18), (18, 17)]];
+        let sequences: Vec<Vec<(i8, i8)>> =
+            vec![vec![(20, 19), (19, 17)], vec![(20, 18), (18, 17)]];
         let expected = sequences.clone();
-        assert_eq!(Backgammon::remove_duplicate_states(state, sequences, -1), expected);
+        assert_eq!(
+            Backgammon::remove_duplicate_states(state, sequences, -1),
+            expected
+        );
     }
 }
 
@@ -490,7 +697,7 @@ mod get_entry_moves {
         fn is_should_return_empty_for_empty_moves() {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
-            state.1.0 = 1;
+            state.1 .0 = 1;
             let moves: &Vec<u8> = &vec![];
             assert!(Backgammon::get_entry_moves(moves, state, -1).is_empty());
         }
@@ -500,7 +707,7 @@ mod get_entry_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[21] = 2;
-            state.1.0 = 1;
+            state.1 .0 = 1;
             let moves: &Vec<u8> = &vec![3];
             assert!(Backgammon::get_entry_moves(moves, state, -1).is_empty());
         }
@@ -509,10 +716,16 @@ mod get_entry_moves {
         fn it_should_work_for_one_entry() {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
-            state.1.0 = 1;
+            state.1 .0 = 1;
             let moves: &Vec<u8> = &vec![3];
             assert!(Backgammon::get_entry_moves(moves, state, -1).len() == 1);
-            assert_eq!(Backgammon::get_entry_moves(moves, state, -1).get(0).unwrap().value, (-1, 21));
+            assert_eq!(
+                Backgammon::get_entry_moves(moves, state, -1)
+                    .get(0)
+                    .unwrap()
+                    .value,
+                (-1, 21)
+            );
         }
 
         #[test]
@@ -520,11 +733,23 @@ mod get_entry_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[19] = 2;
-            state.1.0 = 1;
+            state.1 .0 = 1;
             let moves: &Vec<u8> = &vec![3, 2];
             assert!(Backgammon::get_entry_moves(moves, state, -1).len() == 2);
-            assert_eq!(Backgammon::get_entry_moves(moves, state, -1).get(0).unwrap().value, (-1, 22));
-            assert_eq!(Backgammon::get_entry_moves(moves, state, -1).get(1).unwrap().value, (-1, 21));
+            assert_eq!(
+                Backgammon::get_entry_moves(moves, state, -1)
+                    .get(0)
+                    .unwrap()
+                    .value,
+                (-1, 22)
+            );
+            assert_eq!(
+                Backgammon::get_entry_moves(moves, state, -1)
+                    .get(1)
+                    .unwrap()
+                    .value,
+                (-1, 21)
+            );
         }
     }
 
@@ -534,7 +759,7 @@ mod get_entry_moves {
         fn is_should_return_empty_for_empty_moves() {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
-            state.1.1 = 1;
+            state.1 .1 = 1;
             let moves: &Vec<u8> = &vec![];
             assert!(Backgammon::get_entry_moves(moves, state, 1).is_empty());
         }
@@ -544,7 +769,7 @@ mod get_entry_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[2] = -2;
-            state.1.1 = 1;
+            state.1 .1 = 1;
             let moves: &Vec<u8> = &vec![3];
             assert!(Backgammon::get_entry_moves(moves, state, 1).is_empty());
         }
@@ -553,10 +778,16 @@ mod get_entry_moves {
         fn it_should_work_for_one_entry() {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
-            state.1.1 = 1;
+            state.1 .1 = 1;
             let moves: &Vec<u8> = &vec![3];
             assert!(Backgammon::get_entry_moves(moves, state, 1).len() == 1);
-            assert_eq!(Backgammon::get_entry_moves(moves, state, 1).get(0).unwrap().value, (-1, 2));
+            assert_eq!(
+                Backgammon::get_entry_moves(moves, state, 1)
+                    .get(0)
+                    .unwrap()
+                    .value,
+                (-1, 2)
+            );
         }
 
         #[test]
@@ -564,12 +795,23 @@ mod get_entry_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[4] = -2;
-            state.1.1 = 1;
+            state.1 .1 = 1;
             let moves: &Vec<u8> = &vec![3, 2];
             assert!(Backgammon::get_entry_moves(moves, state, 1).len() == 2);
-            assert_eq!(Backgammon::get_entry_moves(moves, state, 1).get(0).unwrap().value, (-1, 1));
-            assert_eq!(Backgammon::get_entry_moves(moves, state, 1).get(1).unwrap().value, (-1, 2));
+            assert_eq!(
+                Backgammon::get_entry_moves(moves, state, 1)
+                    .get(0)
+                    .unwrap()
+                    .value,
+                (-1, 1)
+            );
+            assert_eq!(
+                Backgammon::get_entry_moves(moves, state, 1)
+                    .get(1)
+                    .unwrap()
+                    .value,
+                (-1, 2)
+            );
         }
     }
-    
 }

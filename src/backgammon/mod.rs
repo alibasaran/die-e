@@ -4,18 +4,21 @@ type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
 type Actions = Vec<(i8, i8)>;
 
+#[derive(Debug)]
 pub struct ActionNode {
     pub value: (i8, i8),
     pub children: Vec<ActionNode>,
 }
 
 impl fmt::Display for ActionNode {
+    #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.format_tree(f, "", true)
     }
 }
 
 impl PartialEq for ActionNode {
+    #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value && self.children == other.children
     }
@@ -23,6 +26,7 @@ impl PartialEq for ActionNode {
 
 
 impl ActionNode {
+    #[cfg(not(tarpaulin_include))]
     fn format_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
         let node_prefix = if is_last { "└── " } else { "├── " };
         let child_prefix = if is_last { "    " } else { "│   " };
@@ -199,12 +203,11 @@ impl Backgammon {
                 if n_pieces_on_point > 0 {
                     possible_actions.push((m, (point, -1)))
                 }
-                for m_idx in (24 - m)..=23 {
+                for m_idx in point..=23 {
                     let m_idx_usize = m_idx as usize;
-                    // m - 2 because the point itself is included
                     let n_pieces_on_point = board[m_idx_usize];
-                    let left_sum: i8 = board[18..m_idx_usize-1].iter().sum();
-                    if n_pieces_on_point < 0 && left_sum == 0 {
+                    let left_sum: i8 = board[18..m_idx_usize].iter().sum();
+                    if n_pieces_on_point > 0 && left_sum <= 0 {
                         possible_actions.push((m, (m_idx, -1)));
                         break;
                     }
@@ -250,7 +253,7 @@ impl Backgammon {
         return trees;
     }
 
-    fn is_collectible(board: Board, player: i8) -> bool {
+    pub fn is_collectible(board: Board, player: i8) -> bool {
         if player == -1 {
             if board.1 .0 != 0 {
                 return false;
