@@ -146,13 +146,13 @@ impl Backgammon {
 
     fn get_pieces_hit(state: Board, player: i8) -> u8 {
         if player == -1 {
-            state.1 .1
+            return state.1 .0;
         } else {
-            state.1 .0
+            return state.1 .1;
         }
     }
 
-    fn get_valid_moves(roll: (u8, u8), state: Board, player: i8) -> Vec<Actions> {
+    pub fn get_valid_moves(roll: (u8, u8), state: Board, player: i8) -> Vec<Actions> {
         let mut all_moves: Vec<u8> = if roll.0 == roll.1 {
             vec![roll.0; 4]
         // To remove all dup combinations. Eg. 6-1 or 1-6
@@ -163,7 +163,8 @@ impl Backgammon {
         };
         let action_trees = Self::_get_action_trees(&mut all_moves, state, player);
         // parse trees into actions here
-        return vec![];
+        let actions = Self::extract_sequences_list(action_trees);
+        return Self::remove_duplicate_states(state, actions, player);
     }
 
     fn _get_action_trees(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
