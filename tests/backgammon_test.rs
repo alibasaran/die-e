@@ -536,8 +536,8 @@ mod check_win {
     #[test]
     fn it_should_return_false_when_nobody_won() {
         let bg = Backgammon::get_initial_state();
-        let win_p1 = Backgammon::check_win(bg, vec![(0, 0)], -1);
-        let win_p2 = Backgammon::check_win(bg, vec![(0, 0)], 1);
+        let win_p1 = Backgammon::check_win(bg, -1);
+        let win_p2 = Backgammon::check_win(bg, 1);
         assert!(!win_p1);
         assert!(!win_p2);
     }
@@ -546,10 +546,10 @@ mod check_win {
     fn it_should_return_true_when_win() {
         let mut bg = Backgammon::get_initial_state();
         bg.0 = [0; 24];
-        bg.2.0 = 15; // Total num of pieces
-        bg.2.1 = 15; // Total num of pieces
-        let win_p1 = Backgammon::check_win(bg, vec![(0, 0)], -1);
-        let win_p2 = Backgammon::check_win(bg, vec![(0, 0)], 1);
+        bg.2 .0 = 15; // Total num of pieces
+        bg.2 .1 = 15; // Total num of pieces
+        let win_p1 = Backgammon::check_win(bg, -1);
+        let win_p2 = Backgammon::check_win(bg, 1);
         assert!(win_p1);
         assert!(win_p2);
     }
@@ -862,7 +862,10 @@ mod get_valid_moves {
         state.0[20] = -1;
         let roll_1 = (1, 2);
         let roll_2 = (2, 1);
-        assert_eq!(Backgammon::get_valid_moves(roll_1, state, -1), Backgammon::get_valid_moves(roll_2, state, -1));
+        assert_eq!(
+            Backgammon::get_valid_moves(roll_1, state, -1),
+            Backgammon::get_valid_moves(roll_2, state, -1)
+        );
     }
 
     #[test]
@@ -880,7 +883,7 @@ mod get_valid_moves {
         let mut state = Backgammon::get_initial_state();
         state.0 = [0; 24];
         state.0[21] = 2;
-        state.1.0 = 1;
+        state.1 .0 = 1;
         let roll = (1, 2);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(-1, 23)], vec![(-1, 22)]];
         assert_eq!(Backgammon::get_valid_moves(roll, state, -1), expected);

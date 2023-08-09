@@ -141,12 +141,11 @@ impl Backgammon {
     // get_next_state(state, action, player) // Sinan
     // get_valid_moves(die, state) // Ali
     // check_win // Ali
-    pub fn check_win(state: Board, action: Actions, player: i8) -> bool {
-        let board: Board = Self::get_next_state(state, action, player);
+    pub fn check_win(state: Board, player: i8) -> bool {
         if player == -1 {
-            board.2 .0 == 15
+            state.2 .0 == 15
         } else {
-            board.2 .1 == 15
+            state.2 .1 == 15
         }
     }
 
