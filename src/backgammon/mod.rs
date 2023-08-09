@@ -1,4 +1,4 @@
-use std::{cmp, collections::HashSet, fmt, iter::repeat, ops::Range, vec};
+use std::{collections::HashSet, fmt, vec};
 // (the board itself, pieces_hit, pieces_collected)
 type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
@@ -60,6 +60,12 @@ pub struct Backgammon {
     // hamle sirasi
 }
 
+impl Default for Backgammon {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Backgammon {
     pub fn new() -> Self {
         Backgammon {
@@ -99,7 +105,7 @@ impl Backgammon {
             }
 
             if from == -1 {
-                if state.0[to as usize] == player * -1 {
+                if state.0[to as usize] == -player {
                     // Hitting the opponent's checker
                     state.0[to as usize] = player;
                     if player == -1 {
@@ -115,7 +121,7 @@ impl Backgammon {
                 } else {
                     state.1 .1 -= 1;
                 }
-            } else if state.0[to as usize] == player * -1 {
+            } else if state.0[to as usize] == -player {
                 // Hitting the opponent's checker
                 state.0[to as usize] = player;
                 state.0[from as usize] -= player;
@@ -146,38 +152,35 @@ impl Backgammon {
 
     fn get_pieces_hit(state: Board, player: i8) -> u8 {
         if player == -1 {
-            return state.1 .0;
+            state.1 .0
         } else {
-            return state.1 .1;
+            state.1 .1
         }
     }
 
     pub fn get_valid_moves(roll: (u8, u8), state: Board, player: i8) -> Vec<Actions> {
-        let mut all_moves: Vec<u8> = if roll.0 == roll.1 {
-            vec![roll.0; 4]
-        // To remove all dup combinations. Eg. 6-1 or 1-6
-        } else if roll.0 > roll.1 {
-            vec![roll.0, roll.1]
-        } else {
-            vec![roll.1, roll.0]
+        let all_moves: Vec<u8> = match roll {
+            (r0, r1) if r0 == r1 => vec![r0; 4],
+            (r0, r1) if r0 > r1 => vec![r0, r1],
+            (r0, r1) => vec![r1, r0],
         };
-        let action_trees = Self::_get_action_trees(&mut all_moves, state, player);
+        let action_trees = Self::_get_action_trees(&all_moves, state, player);
         // parse trees into actions here
         let actions = Self::extract_sequences_list(action_trees);
-        return Self::remove_duplicate_states(state, actions, player);
+        Self::remove_duplicate_states(state, actions, player)
     }
 
-    fn _get_action_trees(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
+    fn _get_action_trees(moves: &[u8], state: Board, player: i8) -> Vec<ActionNode> {
         let num_pieces_hit = Self::get_pieces_hit(state, player);
         // Return if there is a hit piece, no other move can be made without all pieces in-game
         if num_pieces_hit > 0 {
-            return Self::get_entry_moves(moves, state, player);
+            Self::get_entry_moves(moves, state, player)
         } else {
-            return Self::get_normal_moves(moves, state, player);
+            Self::get_normal_moves(moves, state, player)
         }
     }
 
-    pub fn get_normal_moves(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
+    pub fn get_normal_moves(moves: &[u8], state: Board, player: i8) -> Vec<ActionNode> {
         let (board, _, _) = state;
 
         let mut trees: Vec<ActionNode> = vec![];
@@ -186,7 +189,7 @@ impl Backgammon {
         // Players still can do normal moves even in collection so we do not only return collection moves
         if player == -1 && Self::is_collectible(state, player) {
             for m in moves.iter().map(|x| *x as i8) {
-                let point = (m - 1) as i8;
+                let point = m - 1;
                 let n_pieces_on_point = board[point as usize];
                 if n_pieces_on_point < 0 {
                     possible_actions.push((m, (point, -1)))
@@ -230,13 +233,13 @@ impl Backgammon {
                     && point - m >= 0
                     && board[(point - m) as usize] <= 1
                 {
-                    possible_actions.push((m, (point as i8, (point - m) as i8)))
+                    possible_actions.push((m, (point, (point - m))))
                 } else if player == 1
                     && *n_pieces >= player
                     && point + m <= 23
                     && board[(point + m) as usize] >= -1
                 {
-                    possible_actions.push((m, (point as i8, (point + m) as i8)))
+                    possible_actions.push((m, (point, (point + m))))
                 }
             }
         }
@@ -257,7 +260,7 @@ impl Backgammon {
             };
             trees.push(current_node)
         }
-        return trees;
+        trees
     }
 
     pub fn is_collectible(board: Board, player: i8) -> bool {
@@ -283,7 +286,7 @@ impl Backgammon {
         true
     }
 
-    pub fn get_entry_moves(moves: &Vec<u8>, state: Board, player: i8) -> Vec<ActionNode> {
+    pub fn get_entry_moves(moves: &[u8], state: Board, player: i8) -> Vec<ActionNode> {
         let (board, _, _) = state;
 
         let mut trees: Vec<ActionNode> = vec![];
@@ -323,7 +326,7 @@ impl Backgammon {
             trees.push(current_node)
         }
 
-        return trees;
+        trees
     }
 
     fn _get_children_of_node_action(
@@ -340,7 +343,7 @@ impl Backgammon {
         new_moves.remove(index_to_remove);
 
         // return children
-        return Self::_get_action_trees(&mut new_moves, new_state, player);
+        Self::_get_action_trees(&new_moves, new_state, player)
     }
 
     pub fn extract_sequences_list(list: Vec<ActionNode>) -> Vec<Actions> {
@@ -348,7 +351,7 @@ impl Backgammon {
         for action_node in list {
             sequences.extend(Self::extract_sequences_node(&action_node));
         }
-        return sequences;
+        sequences
     }
 
     pub fn extract_sequences_node(node: &ActionNode) -> Vec<Actions> {
@@ -382,10 +385,10 @@ impl Backgammon {
         let mut unique_sequences = Vec::new();
 
         for sequence in sequences {
-            let mut current_state = initial_state.clone();
+            let mut current_state = initial_state;
 
             for action in &sequence {
-                current_state = Self::get_next_state(current_state, vec![action.clone()], player);
+                current_state = Self::get_next_state(current_state, vec![*action], player);
             }
 
             if seen_states.insert(current_state) {
