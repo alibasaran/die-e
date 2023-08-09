@@ -530,6 +530,30 @@ mod is_collectible {
     }
 }
 
+mod check_win {
+    use super::*;
+
+    #[test]
+    fn it_should_return_false_when_nobody_won() {
+        let bg = Backgammon::get_initial_state();
+        let win_p1 = Backgammon::check_win(bg, vec![(0, 0)], -1);
+        let win_p2 = Backgammon::check_win(bg, vec![(0, 0)], 1);
+        assert!(!win_p1);
+        assert!(!win_p2);
+    }
+
+    #[test]
+    fn it_should_return_true_when_win() {
+        let mut bg = Backgammon::get_initial_state();
+        bg.0 = [0; 24];
+        bg.2.0 = 15; // Total num of pieces
+        bg.2.1 = 15; // Total num of pieces
+        let win_p1 = Backgammon::check_win(bg, vec![(0, 0)], -1);
+        let win_p2 = Backgammon::check_win(bg, vec![(0, 0)], 1);
+        assert!(win_p1);
+        assert!(win_p2);
+    }
+}
 #[cfg(test)]
 mod extract_sequences_node {
     use super::*;

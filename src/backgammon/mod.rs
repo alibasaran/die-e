@@ -135,20 +135,20 @@ impl Backgammon {
     // get_next_state(state, action, player) // Sinan
     // get_valid_moves(die, state) // Ali
     // check_win // Ali
-    fn check_win(state: Board, action: Actions, player: i8) -> bool {
+    pub fn check_win(state: Board, action: Actions, player: i8) -> bool {
         let board: Board = Self::get_next_state(state, action, player);
         if player == -1 {
-            return board.1 .0 == 15;
+            board.2 .0 == 15
         } else {
-            return board.1 .1 == 15;
+            board.2 .1 == 15
         }
     }
 
     fn get_pieces_hit(state: Board, player: i8) -> u8 {
         if player == -1 {
-            return state.1 .1;
+            state.1 .1
         } else {
-            return state.1 .0;
+            state.1 .0
         }
     }
 
