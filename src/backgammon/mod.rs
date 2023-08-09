@@ -1,4 +1,4 @@
-use std::{cmp, fmt, iter::repeat, ops::Range, vec, collections::HashSet};
+use std::{cmp, collections::HashSet, fmt, iter::repeat, ops::Range, vec};
 // (the board itself, pieces_hit, pieces_collected)
 type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
@@ -8,7 +8,7 @@ type Actions = Vec<(i8, i8)>;
 #[repr(i8)]
 pub enum Player {
     ONE = -1,
-    TWO = 1
+    TWO = 1,
 }
 
 #[derive(Debug)]
@@ -30,7 +30,6 @@ impl PartialEq for ActionNode {
         self.value == other.value && self.children == other.children
     }
 }
-
 
 impl ActionNode {
     #[cfg(not(tarpaulin_include))]
@@ -196,7 +195,7 @@ impl Backgammon {
                 for m_idx in (0..point).rev() {
                     let m_idx_usize = m_idx as usize;
                     let n_pieces_on_point = board[m_idx_usize];
-                    let left_sum: i8 = board[m_idx_usize+1..6].iter().sum();
+                    let left_sum: i8 = board[m_idx_usize + 1..6].iter().sum();
                     if n_pieces_on_point < 0 && left_sum >= 0 {
                         possible_actions.push((m, (m_idx, -1)));
                         break;
@@ -295,14 +294,14 @@ impl Backgammon {
                 if board[point as usize] < 2 {
                     possible_actions.push((m, (-1, point)));
                 }
-            } 
+            }
         } else if player == 1 {
             for m in moves.iter().map(|x| *x as i8) {
-                let point =  m - 1;
+                let point = m - 1;
                 if board[point as usize] > -2 {
                     possible_actions.push((m, (-1, point)));
                 }
-            } 
+            }
         }
 
         // removes duplicate actions
@@ -354,13 +353,13 @@ impl Backgammon {
     pub fn extract_sequences_node(node: &ActionNode) -> Vec<Actions> {
         Self::extract_sequences_helper(node, Vec::new())
     }
-    
+
     fn extract_sequences_helper(node: &ActionNode, current_sequence: Actions) -> Vec<Actions> {
         let mut sequences = Vec::new();
-    
+
         let mut new_sequence = current_sequence.clone();
         new_sequence.push(node.value);
-    
+
         if node.children.is_empty() {
             sequences.push(new_sequence);
         } else {
@@ -369,21 +368,25 @@ impl Backgammon {
                 sequences.extend(child_sequences);
             }
         }
-    
+
         sequences
     }
 
-    pub fn remove_duplicate_states(initial_state: Board, sequences: Vec<Actions>, player: i8) -> Vec<Actions> {
+    pub fn remove_duplicate_states(
+        initial_state: Board,
+        sequences: Vec<Actions>,
+        player: i8,
+    ) -> Vec<Actions> {
         let mut seen_states = HashSet::new();
         let mut unique_sequences = Vec::new();
 
         for sequence in sequences {
             let mut current_state = initial_state.clone();
-            
+
             for action in &sequence {
                 current_state = Self::get_next_state(current_state, vec![action.clone()], player);
             }
-            
+
             if seen_states.insert(current_state) {
                 unique_sequences.push(sequence);
             }

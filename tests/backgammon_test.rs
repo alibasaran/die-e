@@ -542,7 +542,7 @@ mod extract_sequences_node {
         let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(10, 11)]];
         assert_eq!(
-            Backgammon::extract_sequences_node(&moves.get(0).unwrap()),
+            Backgammon::extract_sequences_node(moves.get(0).unwrap()),
             expected
         );
     }
