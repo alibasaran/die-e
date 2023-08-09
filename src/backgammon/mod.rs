@@ -1,8 +1,8 @@
 use std::{collections::HashSet, fmt, vec};
 // (the board itself, pieces_hit, pieces_collected)
-type Board = ([i8; 24], (u8, u8), (u8, u8));
+pub type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
-type Actions = Vec<(i8, i8)>;
+pub type Actions = Vec<(i8, i8)>;
 
 // Player1 should always be -1 and Player2 should always be 1
 #[repr(i8)]

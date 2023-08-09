@@ -1,6 +1,7 @@
 pub use backgammon::Backgammon;
 
 pub mod backgammon;
+pub mod mcts;
 
 #[cfg(not(tarpaulin_include))]
 fn main() {
