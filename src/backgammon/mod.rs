@@ -50,7 +50,7 @@ impl ActionNode {
         Ok(())
     }
 }
-
+#[derive(Clone)]
 pub struct Backgammon {
     // board:: 24 poz
     pub board: Board,
