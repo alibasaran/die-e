@@ -68,8 +68,12 @@ fn select(node: Node) -> Node {
     }
 }
 
-fn backpropagate(node: &mut Node, result: i8) {
-    while let Some(parent) = node.parent.as_mut() {}
+fn backpropagate(node: &mut Node, result: f32) {
+    node.visits += 1.0;
+    node.value += result;
+    if let Some(parent) = node.parent.as_mut() {
+        backpropagate(parent, result)
+    }
 }
 
 struct MctsConfig {
