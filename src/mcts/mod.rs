@@ -1,4 +1,4 @@
-use std::ops::Div;
+use std::{ops::Div, cmp::Ordering};
 
 use crate::backgammon::{Actions, Backgammon};
 use rand::Rng;
@@ -67,20 +67,12 @@ impl Node {
     }
 }
 
+
 fn select(node: Node) -> Node {
-    let mut best_child: Option<Node> = None;
-    let mut best_ucb = f32::NEG_INFINITY;
-    for child in node.children.iter() {
-        let curr_ucb = child.ucb();
-        if curr_ucb > best_ucb {
-            best_child = Some(child.clone());
-            best_ucb = curr_ucb;
-        }
-    }
-    match best_child {
-        Some(child) => child,
-        None => panic!("select called on node without children!"),
-    }
+    node.children.iter()
+    .max_by(|a, b| a.ucb().partial_cmp(&b.ucb()).unwrap_or(Ordering::Equal))
+    .cloned()
+    .expect("select called on node without children!")
 }
 
 fn backpropagate(node: &mut Node, result: f32) {
