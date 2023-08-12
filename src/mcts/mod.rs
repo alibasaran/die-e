@@ -1,3 +1,5 @@
+use std::ops::Div;
+
 use crate::backgammon::{Backgammon, Actions};
 use rand::Rng;
 
@@ -6,8 +8,8 @@ struct Node {
     state: Backgammon,
     parent: Option<Box<Node>>,
     children: Vec<Node>,
-    visits: usize,
-    value: usize,
+    visits: f32,
+    value: f32,
     action_taken: Option<Actions>,
     expandable_moves: Vec<Actions>,
     player: i8
@@ -25,8 +27,8 @@ impl Node {
             action_taken,
             expandable_moves: moves,
             player,
-            visits: 0,
-            value: 0,
+            visits: 0.0,
+            value: 0.0,
         }
     }
 
@@ -35,17 +37,18 @@ impl Node {
     }
 }
 
-fn ucb(node: &Node) -> f32 {
-    unimplemented!()
+fn ucb(node: &Node, child: &Node) -> f32 {
+    let q_value = 1.0 - (child.value.div(child.visits));
+    q_value + (CONFIG.c * node.visits.ln().div(child.visits).sqrt())
 }
 
 fn select(node: Node) -> Node {
     let mut best_child: Option<Node> = None;
     let mut best_ucb = f32::NEG_INFINITY;
-    for child in node.children {
-        let curr_ucb = ucb(&child);
+    for child in node.children.iter() {
+        let curr_ucb = ucb(&node, child);
         if curr_ucb > best_ucb {
-            best_child = Some(child);
+            best_child = Some(child.clone());
             best_ucb = curr_ucb;
         }
     }
@@ -61,13 +64,18 @@ fn backpropagate(node: &mut Node, result: i8) {
 }
 
 struct MctsConfig {
-    iterations: usize
+    iterations: usize,
+    c: f32
 }
+const CONFIG: MctsConfig = MctsConfig {
+    iterations: 1000,
+    c: 1.0
+};
 
-fn mct_search(state: Backgammon, player: i8, config: MctsConfig) -> Actions {
+fn mct_search(state: Backgammon, player: i8) -> Actions {
     let mut root = Node::new(state, None, None, player);
 
-    for iteration in 0..config.iterations {
+    for iteration in 0..CONFIG.iterations {
         let mut node = root.clone();
         while node.is_fully_expanded() {
             node = select(node)
