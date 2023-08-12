@@ -79,6 +79,12 @@ impl Backgammon {
         }
     }
 
+    pub fn init_with_board(board: Board) -> Self {
+        Backgammon {
+            board
+        }
+    }
+
     pub fn get_initial_state() -> Board {
         (
             [

@@ -8,6 +8,7 @@ mod get_initial_state {
     fn get_initial_state_test() {
         let bg = Backgammon::new();
         let init = Backgammon::get_initial_state();
+        let bg_2 = Backgammon::init_with_board(init);
         let expected = (
             [
                 2, 0, 0, 0, 0, -5, 0, -3, 0, 0, 0, 5, -5, 0, 0, 0, 3, 0, 5, 0, 0, 0, 0, -2,
@@ -17,6 +18,7 @@ mod get_initial_state {
         );
         assert_eq!(bg.board, init);
         assert_eq!(init, expected);
+        assert_eq!(bg.board, bg_2.board);
     }
 }
 

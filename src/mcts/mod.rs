@@ -18,7 +18,7 @@ struct Node {
 impl Node {
     fn new(
         state: Backgammon,
-        parent: Option<Node>,
+        parent: Option<&Node>,
         action_taken: Option<Actions>,
         player: i8,
     ) -> Self {
@@ -49,6 +49,21 @@ impl Node {
             }
             None => f32::INFINITY,
         }
+    }
+
+    fn expand(&self) -> Node {
+        if self.expandable_moves.is_empty() {
+            panic!("expand() called on node with no expandable moves")
+        }
+        let move_idx = rand::thread_rng().gen_range(0..self.expandable_moves.len());
+
+        let action_taken = self.expandable_moves.remove(move_idx);
+        let next_state = Backgammon::get_next_state(self.state.board, action_taken, self.player);
+        let child_backgammon = Backgammon::init_with_board(next_state);
+
+        let child_node = Node::new(child_backgammon, Some(self), Some(action_taken), -self.player);
+        self.children.push(child_node);
+        return child_node;
     }
 }
 
