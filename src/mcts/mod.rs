@@ -1,4 +1,4 @@
-use std::{ops::Div, cmp::Ordering};
+use std::{cmp::Ordering, ops::Div};
 
 use crate::backgammon::{Actions, Backgammon};
 use rand::Rng;
@@ -6,8 +6,9 @@ use rand::Rng;
 #[derive(Clone)]
 struct Node {
     state: Backgammon,
-    parent: Option<Box<Node>>,
-    children: Vec<Node>,
+    idx: usize,
+    parent: Option<usize>,
+    children: Vec<usize>,
     visits: f32,
     value: f32,
     action_taken: Option<Actions>,
@@ -15,10 +16,43 @@ struct Node {
     player: i8,
 }
 
+#[derive(Clone)]
+struct NodeStore {
+    nodes: Vec<Node>,
+}
+
+impl NodeStore {
+    fn new() -> Self {
+        NodeStore { nodes: vec![] }
+    }
+
+    fn add_node(
+        &mut self,
+        state: Backgammon,
+        parent: Option<usize>,
+        action_taken: Option<Actions>,
+        player: i8,
+    ) -> usize {
+        let idx = self.nodes.len();
+        let new_node = Node::new(state, idx + 1, parent, action_taken, player);
+        self.nodes.push(new_node);
+        idx + 1
+    }
+
+    fn get_node_as_mut(&mut self, idx: usize) -> &mut Node {
+        &mut self.nodes[idx]
+    }
+
+    fn get_node(&self, idx: usize) -> &Node {
+        &self.nodes[idx]
+    }
+}
+
 impl Node {
     fn new(
         state: Backgammon,
-        parent: Option<&Node>,
+        idx: usize,
+        parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
     ) -> Self {
@@ -27,7 +61,8 @@ impl Node {
         let moves = Backgammon::get_valid_moves(roll, state.board, player);
         Node {
             state,
-            parent: parent.map(Box::from),
+            parent,
+            idx,
             children: Vec::new(),
             action_taken,
             expandable_moves: moves,
@@ -41,9 +76,10 @@ impl Node {
         self.expandable_moves.is_empty() && !self.children.is_empty()
     }
 
-    fn ucb(&self) -> f32 {
-        match &self.parent {
-            Some(parent) => {
+    fn ucb(&self, store: &NodeStore) -> f32 {
+        match self.parent {
+            Some(parent_idx) => {
+                let parent = store.get_node(parent_idx);
                 let q_value = 1.0 - (self.value.div(self.visits));
                 q_value + (CONFIG.c * parent.visits.ln().div(self.visits).sqrt())
             }
@@ -51,35 +87,47 @@ impl Node {
         }
     }
 
-    fn expand(&self) -> Node {
+    fn expand(&mut self, store: &mut NodeStore) -> usize {
         if self.expandable_moves.is_empty() {
             panic!("expand() called on node with no expandable moves")
         }
         let move_idx = rand::thread_rng().gen_range(0..self.expandable_moves.len());
 
         let action_taken = self.expandable_moves.remove(move_idx);
-        let next_state = Backgammon::get_next_state(self.state.board, action_taken, self.player);
+        let next_state =
+            Backgammon::get_next_state(self.state.board, action_taken.clone(), self.player);
         let child_backgammon = Backgammon::init_with_board(next_state);
 
-        let child_node = Node::new(child_backgammon, Some(self), Some(action_taken), -self.player);
-        self.children.push(child_node);
-        return child_node;
+        let child_idx = store.add_node(
+            child_backgammon,
+            Some(self.idx),
+            Some(action_taken),
+            -self.player,
+        );
+        self.children.push(child_idx);
+        child_idx
     }
 }
 
-
-fn select(node: Node) -> Node {
-    node.children.iter()
-    .max_by(|a, b| a.ucb().partial_cmp(&b.ucb()).unwrap_or(Ordering::Equal))
-    .cloned()
-    .expect("select called on node without children!")
+fn select(node: Node, store: &NodeStore) -> Node {
+    node.children
+        .iter()
+        .map(|child_idx| store.get_node(*child_idx))
+        .max_by(|a, b| {
+            a.ucb(store)
+                .partial_cmp(&b.ucb(store))
+                .unwrap_or(Ordering::Equal)
+        })
+        .cloned()
+        .expect("select called on node without children!")
 }
 
-fn backpropagate(node: &mut Node, result: f32) {
+fn backpropagate(node_idx: usize, result: f32, store: &mut NodeStore) {
+    let mut node = store.get_node_as_mut(node_idx);
     node.visits += 1.0;
     node.value += result;
-    if let Some(parent) = node.parent.as_mut() {
-        backpropagate(parent, result)
+    if let Some(parent) = node.parent {
+        backpropagate(parent, result, store)
     }
 }
 
@@ -93,12 +141,13 @@ const CONFIG: MctsConfig = MctsConfig {
 };
 
 fn mct_search(state: Backgammon, player: i8) -> Actions {
-    let mut root = Node::new(state, None, None, player);
+    let store = NodeStore::new();
+    let root = Node::new(state, 0, None, None, player);
 
     for iteration in 0..CONFIG.iterations {
         let mut node = root.clone();
         while node.is_fully_expanded() {
-            node = select(node)
+            node = select(node, &store)
         }
     }
 
