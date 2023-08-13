@@ -108,7 +108,7 @@ impl Node {
         child_idx
     }
 
-    fn simulate(&mut self) -> u8 {
+    fn simulate(&mut self) -> f32 {
         if Backgammon::check_win(self.state.board, self.player) {
             return ((self.player + 1) / 2).try_into().unwrap();
         }
@@ -118,7 +118,7 @@ impl Node {
         Self::simulate_helper(next_state, -self.player)
     }
 
-    fn simulate_helper(state: Board, curr_player: i8) -> u8 {
+    fn simulate_helper(state: Board, curr_player: i8) -> f32 {
         if Backgammon::check_win(state, curr_player) {
             return ((curr_player + 1) / 2).try_into().unwrap();
         }
@@ -167,13 +167,16 @@ const CONFIG: MctsConfig = MctsConfig {
 };
 
 fn mct_search(state: Backgammon, player: i8) -> Actions {
-    let store = NodeStore::new();
-    let root = Node::new(state, 0, None, None, player);
+    let mut store = NodeStore::new();
+    let mut curr_node_idx = store.add_node(state, None, None, player);
 
     for iteration in 0..CONFIG.iterations {
-        let mut node = root.clone();
-        while node.is_fully_expanded() {
-            node = select(node, &store)
+        let mut curr_node = store.get_node_as_mut(curr_node_idx);
+        if !curr_node.is_fully_expanded() {
+            let mut new_node_idx = curr_node.expand(&mut store);
+            let mut new_node = store.get_node_as_mut(new_node_idx);
+            let result = new_node.simulate();
+            backpropagate(new_node_idx, result, &mut store)
         }
     }
 
