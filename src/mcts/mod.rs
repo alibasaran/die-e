@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, ops::Div};
 
-use crate::backgammon::{Actions, Backgammon};
-use rand::Rng;
+use crate::backgammon::{Actions, Backgammon, Board};
+use rand::{Rng, seq::SliceRandom};
 
 #[derive(Clone)]
 struct Node {
@@ -106,6 +106,32 @@ impl Node {
         );
         self.children.push(child_idx);
         child_idx
+    }
+
+    fn simulate(&mut self) -> u8 {
+        if Backgammon::check_win(self.state.board, self.player) {
+            return ((self.player + 1) / 2).try_into().unwrap();
+        }
+        let move_to_play = self.expandable_moves.choose(&mut rand::thread_rng()).unwrap();
+        let next_state = Backgammon::get_next_state(self.state.board, 
+            move_to_play.to_vec(), self.player);
+        Self::simulate_helper(next_state, -self.player)
+    }
+
+    fn simulate_helper(state: Board, curr_player: i8) -> u8 {
+        if Backgammon::check_win(state, curr_player) {
+            return ((curr_player + 1) / 2).try_into().unwrap();
+        }
+        let mut rng = rand::thread_rng();
+        let roll = (rng.gen_range(0..=6), rng.gen_range(0..=6));
+
+        let valid_moves = Backgammon::get_valid_moves(roll, state, curr_player);
+        let move_to_play = valid_moves.choose(&mut rng).unwrap();
+
+        let next_state = Backgammon::get_next_state(state, 
+            move_to_play.to_vec(), curr_player);
+
+        Self::simulate_helper(next_state, -curr_player)
     }
 }
 
