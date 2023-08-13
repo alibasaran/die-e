@@ -1,9 +1,9 @@
 use std::{cmp::Ordering, ops::Div};
 
 use crate::backgammon::{Actions, Backgammon, Board};
-use rand::{Rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, Rng};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Node {
     state: Backgammon,
     idx: usize,
@@ -39,12 +39,32 @@ impl NodeStore {
         idx + 1
     }
 
+    fn set_node(&mut self, node: &Node) {
+        self.nodes[node.idx] = node.clone()
+    }
+
+    fn get_node(&self, idx: usize) -> Node {
+        self.nodes[idx].clone()
+    }
+
     fn get_node_as_mut(&mut self, idx: usize) -> &mut Node {
         &mut self.nodes[idx]
     }
+}
 
-    fn get_node(&self, idx: usize) -> &Node {
-        &self.nodes[idx]
+impl Node {
+    fn copy(&self) -> Node {
+        Node {
+            state: self.state.clone(),
+            idx: self.idx,
+            parent: self.parent,
+            children: self.children.clone(),
+            visits: self.visits,
+            value: self.value,
+            action_taken: self.action_taken.clone(),
+            expandable_moves: self.expandable_moves.clone(),
+            player: self.player,
+        }
     }
 }
 
@@ -112,9 +132,12 @@ impl Node {
         if Backgammon::check_win(self.state.board, self.player) {
             return ((self.player + 1) / 2).try_into().unwrap();
         }
-        let move_to_play = self.expandable_moves.choose(&mut rand::thread_rng()).unwrap();
-        let next_state = Backgammon::get_next_state(self.state.board, 
-            move_to_play.to_vec(), self.player);
+        let move_to_play = self
+            .expandable_moves
+            .choose(&mut rand::thread_rng())
+            .unwrap();
+        let next_state =
+            Backgammon::get_next_state(self.state.board, move_to_play.to_vec(), self.player);
         Self::simulate_helper(next_state, -self.player)
     }
 
@@ -128,8 +151,7 @@ impl Node {
         let valid_moves = Backgammon::get_valid_moves(roll, state, curr_player);
         let move_to_play = valid_moves.choose(&mut rng).unwrap();
 
-        let next_state = Backgammon::get_next_state(state, 
-            move_to_play.to_vec(), curr_player);
+        let next_state = Backgammon::get_next_state(state, move_to_play.to_vec(), curr_player);
 
         Self::simulate_helper(next_state, -curr_player)
     }
@@ -144,7 +166,6 @@ fn select(node: Node, store: &NodeStore) -> Node {
                 .partial_cmp(&b.ucb(store))
                 .unwrap_or(Ordering::Equal)
         })
-        .cloned()
         .expect("select called on node without children!")
 }
 
@@ -168,16 +189,20 @@ const CONFIG: MctsConfig = MctsConfig {
 
 fn mct_search(state: Backgammon, player: i8) -> Actions {
     let mut store = NodeStore::new();
-    let mut curr_node_idx = store.add_node(state, None, None, player);
+    let curr_node_idx = store.add_node(state, None, None, player);
 
     for iteration in 0..CONFIG.iterations {
-        let mut curr_node = store.get_node_as_mut(curr_node_idx);
+        // Don't forget to save the node later into the store
+        let mut curr_node = store.get_node(curr_node_idx);
+
         if !curr_node.is_fully_expanded() {
             let mut new_node_idx = curr_node.expand(&mut store);
-            let mut new_node = store.get_node_as_mut(new_node_idx);
+            let mut new_node = store.get_node(new_node_idx);
             let result = new_node.simulate();
             backpropagate(new_node_idx, result, &mut store)
         }
+        // example node save
+        store.set_node(&curr_node)
     }
 
     unimplemented!()
