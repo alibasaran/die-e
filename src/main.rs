@@ -3,8 +3,15 @@ pub use backgammon::Backgammon;
 pub mod backgammon;
 pub mod mcts;
 
-#[cfg(not(tarpaulin_include))]
+use tch::Tensor;
+
 fn main() {
+    let t = Tensor::from_slice(&[3, 1, 4, 1, 5]);
+    let t = t * 2;
+    t.print();
+}
+
+fn backgammon() {
     let bg = Backgammon::new();
 
     let normal_moves = Backgammon::get_normal_moves(&vec![6, 1], bg.board, 1);

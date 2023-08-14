@@ -199,7 +199,7 @@ fn mct_search(state: Backgammon, player: i8) -> Actions {
             let mut new_node_idx = curr_node.expand(&mut store);
             let mut new_node = store.get_node(new_node_idx);
             let result = new_node.simulate();
-            backpropagate(new_node_idx, result, &mut store)
+            backpropagate(new_node_idx, result, &mut store);
         }
         // example node save
         store.set_node(&curr_node)
