@@ -24,4 +24,6 @@ Cargo.lock
 
 # ignore libtorch
 /torch
-/libtorch
+
+libtorch/*
+!libtorch/.gitkeep

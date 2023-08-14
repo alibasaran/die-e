@@ -3,6 +3,7 @@ An AlphaZero implementation on backgammon to beat our dad.
 
 
 Install libtorch under ./libtorch for rust-analyzer to work
+https://pytorch.org/get-started/locally/
 
 Followed https://github.com/ssoudan/tch-m1/tree/main for libtorch setup
 
