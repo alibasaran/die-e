@@ -37,7 +37,7 @@ impl NodeStore {
         parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
-        roll: (u8, u8)
+        roll: (u8, u8),
     ) -> usize {
         let idx = self.nodes.len();
         let new_node = Node::new(state, idx, parent, action_taken, player, roll);
@@ -81,7 +81,7 @@ impl Node {
         parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
-        roll: (u8, u8)
+        roll: (u8, u8),
     ) -> Self {
         let moves = Backgammon::get_valid_moves(roll, state.board, player);
         Node {
@@ -133,7 +133,7 @@ impl Node {
             Some(self.idx),
             Some(action_taken),
             -self.player,
-            roll
+            roll,
         );
         self.children.push(child_idx);
         store.set_node(self);
@@ -144,20 +144,21 @@ impl Node {
         let mut rng = rand::thread_rng();
         let mut curr_state = self.state.board;
         let mut curr_player = self.player;
-    
+
         for _ in 0..CONFIG.simulate_round_limit {
             if let Some(winner) = Backgammon::check_win_without_player(curr_state) {
                 return (((winner / player) + 1) / 2) as f32;
             }
-    
+
             let roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
             let valid_moves = Backgammon::get_valid_moves(roll, curr_state, curr_player);
-    
+
             if !valid_moves.is_empty() {
                 let move_to_play = valid_moves.choose(&mut rng).unwrap();
-                curr_state = Backgammon::get_next_state(curr_state, move_to_play.to_vec(), curr_player);
+                curr_state =
+                    Backgammon::get_next_state(curr_state, move_to_play.to_vec(), curr_player);
             }
-    
+
             curr_player = -curr_player;
         }
         rng.gen_range(0..=1) as f32
@@ -199,10 +200,11 @@ struct MctsConfig {
     c: f32,
     simulate_round_limit: usize,
 }
+
 const CONFIG: MctsConfig = MctsConfig {
-    iterations: 100,
-    c: 0.14,
-    simulate_round_limit: 100
+    iterations: 10000,
+    c: std::f32::consts::SQRT_2,
+    simulate_round_limit: 100,
 };
 
 pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
@@ -210,24 +212,52 @@ pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
     let root_node_idx = store.add_node(state, None, None, player, roll);
 
     for i in 0..CONFIG.iterations {
-        println!("{}", i);
+        if i % 100 == 0 {
+            println!("{}", i);
+        }
         // Don't forget to save the node later into the store
         let idx = select_leaf_node(root_node_idx, &store);
         let mut selected_node = store.get_node(idx);
 
-        if selected_node.is_terminal() {
-            let result = selected_node.simulate(player);
-            backpropagate(selected_node.idx, result, &mut store);
-        }
+        // if selected_node.is_terminal() {
+        //     let result = selected_node.simulate(player);
+        //     backpropagate(selected_node.idx, result, &mut store);
+        // }
 
         while !selected_node.is_fully_expanded() {
             let new_node_idx = selected_node.expand(&mut store);
             let mut new_node = store.get_node(new_node_idx);
             let result = new_node.simulate(player);
             backpropagate(new_node_idx, result, &mut store)
-        }  
+        }
     }
 
-    select(root_node_idx, &store).action_taken
+    pretty_print_tree(&store, 0, 1, 0);
+
+    select(root_node_idx, &store)
+        .action_taken
         .expect("No action taken found.")
+}
+
+fn pretty_print_tree(node_store: &NodeStore, index: usize, depth: usize, current_depth: usize) {
+    if current_depth > depth {
+        return;
+    }
+
+    let node = &node_store.get_node(index);
+    let indent = "  ".repeat(current_depth);
+
+    println!(
+        "{}[{}] Action: {:?} \t\tVisits: {:.2} \tValue: {:.2} \tUCB: {:.5}",
+        indent,
+        index,
+        node.action_taken,
+        node.visits,
+        node.value,
+        node.ucb(node_store)
+    );
+
+    for &child_index in &node.children {
+        pretty_print_tree(node_store, child_index, depth, current_depth + 1);
+    }
 }
