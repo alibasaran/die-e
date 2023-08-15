@@ -249,7 +249,7 @@ pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
     }
     select_win_pct(root_node_idx, &store)
         .action_taken
-        .expect("No action taken found.")
+        .unwrap_or(vec![])
 }
 
 pub fn random_play(state: Board, player: i8, roll: (u8, u8)) -> Actions {
