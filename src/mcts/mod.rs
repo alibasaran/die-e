@@ -77,7 +77,7 @@ impl Node {
         player: i8,
     ) -> Self {
         let mut rng = rand::thread_rng();
-        let roll = (rng.gen_range(0..=6), rng.gen_range(0..=6));
+        let roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
         let moves = Backgammon::get_valid_moves(roll, state.board, player);
         Node {
             state,
@@ -93,7 +93,7 @@ impl Node {
     }
 
     fn is_fully_expanded(&self) -> bool {
-        self.expandable_moves.is_empty() && !self.children.is_empty()
+        self.expandable_moves.is_empty()
     }
 
     fn is_terminal(&self) -> bool {
@@ -133,32 +133,28 @@ impl Node {
         child_idx
     }
 
-    fn simulate(&mut self) -> f32 {
-        if Backgammon::check_win(self.state.board, self.player) {
-            return ((self.player + 1) / 2).try_into().unwrap();
-        }
-        let move_to_play = self
-            .expandable_moves
-            .choose(&mut rand::thread_rng())
-            .unwrap();
-        let next_state =
-            Backgammon::get_next_state(self.state.board, move_to_play.to_vec(), self.player);
-        Self::simulate_helper(next_state, -self.player)
+    fn simulate(&mut self, player: i8) -> f32 {
+        Self::simulate_helper(self.state.board, self.player, player)
     }
 
-    fn simulate_helper(state: Board, curr_player: i8) -> f32 {
-        if Backgammon::check_win(state, curr_player) {
-            return ((curr_player + 1) / 2).try_into().unwrap();
+    fn simulate_helper(state: Board, curr_player: i8, player: i8) -> f32 {
+        if let Some(winner) = Backgammon::check_win_without_player(state) {
+            return (((winner / player) + 1) / 2) as f32;
         }
+        // Backgammon::display_board(&state);
         let mut rng = rand::thread_rng();
-        let roll = (rng.gen_range(0..=6), rng.gen_range(0..=6));
+        let roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
 
         let valid_moves = Backgammon::get_valid_moves(roll, state, curr_player);
-        let move_to_play = valid_moves.choose(&mut rng).unwrap();
 
-        let next_state = Backgammon::get_next_state(state, move_to_play.to_vec(), curr_player);
-
-        Self::simulate_helper(next_state, -curr_player)
+        if !valid_moves.is_empty() {
+            let move_to_play = valid_moves.choose(&mut rng).unwrap();
+            // println!("Move to play: {:?}", move_to_play);
+            let next_state = Backgammon::get_next_state(state, move_to_play.to_vec(), curr_player);
+            Self::simulate_helper(next_state, -curr_player, player)
+        } else {
+            Self::simulate_helper(state, -curr_player, player)
+        }
     }
 }
 
@@ -197,33 +193,34 @@ struct MctsConfig {
     c: f32,
 }
 const CONFIG: MctsConfig = MctsConfig {
-    iterations: 1000,
-    c: 1.0,
+    iterations: 100,
+    c: 0.14,
 };
 
 pub fn mct_search(state: Backgammon, player: i8) -> Actions {
     let mut store = NodeStore::new();
     let root_node_idx = store.add_node(state, None, None, player);
 
-    for _ in 0..CONFIG.iterations {
+    for i in 0..CONFIG.iterations {
+        println!("{}", i);
         // Don't forget to save the node later into the store
         let idx = select_leaf_node(root_node_idx, &store);
         let mut selected_node = store.get_node(idx);
 
         if selected_node.is_terminal() {
-            let result = selected_node.simulate();
+            let result = selected_node.simulate(player);
             backpropagate(selected_node.idx, result, &mut store);
         }
 
         while !selected_node.is_fully_expanded() {
             let new_node_idx = selected_node.expand(&mut store);
             let mut new_node = store.get_node(new_node_idx);
-            let result = new_node.simulate();
+            let result = new_node.simulate(player);
             backpropagate(new_node_idx, result, &mut store)
         }  
 
         // example node save
-        store.set_node(&selected_node)
+        // store.set_node(&selected_node)
     }
 
     select(root_node_idx, &store).action_taken

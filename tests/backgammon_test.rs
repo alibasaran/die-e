@@ -226,6 +226,26 @@ mod get_next_state {
         );
         assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
     }
+
+    #[test]
+    fn it_should_change_state_playing_from_bar_and_hitting_player2_2() {
+        let state = (
+            [
+                -1, -1, -1, 1, -1, -3, -3, 0, 0, 1, 0, 0, -1, 0, -1, -1, 4, 1, 5, -1, -1, 0, 0, 1,
+            ],
+            (0, 2),
+            (0, 0),
+        );
+        let actions: Vec<(i8, i8)> = vec![(-1, 3), (-1, 4)];
+        let expected = (
+            [
+                -1, -1, -1, 2, 1, -3, -3, 0, 0, 1, 0, 0, -1, 0, -1, -1, 4, 1, 5, -1, -1, 0, 0, 1,
+            ],
+            (1, 0),
+            (0, 0),
+        );
+        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+    }
 }
 
 mod get_normal_moves {

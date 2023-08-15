@@ -1,6 +1,10 @@
 {
     "rust-analyzer.check.command": "clippy",
     "rust-analyzer.server.extraEnv": {
-        "LIBTORCH": "${workspaceFolder}/libtorch",
+        "LIBTORCH": "${workspaceFolder}/torch",
+    },
+    "rust-analyzer.runnables.extraEnv": {
+        "LIBTORCH": "${workspaceFolder}/torch",
+        "DYLD_LIBRARY_PATH": "${workspaceFolder}/torch/lib",
     }
 }

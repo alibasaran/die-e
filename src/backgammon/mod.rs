@@ -85,6 +85,54 @@ impl Backgammon {
         }
     }
 
+    pub fn display_board(board: &Board) {
+        let (points, pieces_hit, pieces_collected) = board;
+        let mut total_player_1 = 0;
+        let mut total_player_2 = 0;
+    
+        // Display the main board
+        for point in 13..=24 {
+            if points[point as usize - 1] < 0 {
+                total_player_1 -= points[point as usize - 1];
+            } else if points[point as usize - 1] > 0 {
+                total_player_2 += points[point as usize - 1];
+            }
+            if point == 19 {
+                print!("|");
+            }
+            print!("{:3} ", points[point as usize - 1]);
+        }
+
+        println!("\n");
+        println!("------------------------------------------------");
+        println!();
+        
+    
+        for point in (1..=12).rev() {
+            if points[point as usize - 1] < 0 {
+                total_player_1 -= points[point as usize - 1];
+            } else if points[point as usize - 1] > 0 {
+                total_player_2 += points[point as usize - 1];
+            }
+            if point == 6 {
+                print!("|");
+            }
+            print!("{:3} ", points[point as usize - 1]);
+        }
+        println!("\n");
+
+        // Display hit pieces and collected pieces
+        println!("Hit: ({}, {})   Collected: ({}, {})",
+                 pieces_hit.0, pieces_hit.1, pieces_collected.0, pieces_collected.1);
+
+        total_player_1 += pieces_hit.0 as i8;
+        total_player_1 += pieces_collected.0 as i8;
+        total_player_2 += pieces_hit.1 as i8;
+        total_player_2 += pieces_collected.1 as i8;
+        println!("Total pieces: ({}, {})", total_player_1, total_player_2);
+        println!("\n");
+    }
+
     pub fn get_initial_state() -> Board {
         (
             [
@@ -116,15 +164,16 @@ impl Backgammon {
                     state.0[to as usize] = player;
                     if player == -1 {
                         state.1 .1 += 1;
+                        state.1 .0 -= 1;
                     } else {
                         state.1 .0 += 1;
+                        state.1 .1 -= 1;
                     }
-                }
-                // Moving a checker from the bar
-                state.0[to as usize] = player;
-                if player == -1 {
+                } else if player == -1 {
+                    state.0[to as usize] -= 1;
                     state.1 .0 -= 1;
                 } else {
+                    state.0[to as usize] += 1;
                     state.1 .1 -= 1;
                 }
             } else if state.0[to as usize] == -player {
@@ -153,6 +202,15 @@ impl Backgammon {
         } else {
             state.2 .1 == 15
         }
+    }
+
+    pub fn check_win_without_player(state: Board) -> Option<i8> {
+        if state.2 .0 == 15 {
+            return Some(-1);
+        } else if state.2 .1 == 15 {
+            return Some(1);
+        }
+        None
     }
 
     fn get_pieces_hit(state: Board, player: i8) -> u8 {
