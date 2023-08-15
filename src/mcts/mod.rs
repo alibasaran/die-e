@@ -34,9 +34,9 @@ impl NodeStore {
         player: i8,
     ) -> usize {
         let idx = self.nodes.len();
-        let new_node = Node::new(state, idx + 1, parent, action_taken, player);
+        let new_node = Node::new(state, idx, parent, action_taken, player);
         self.nodes.push(new_node);
-        idx + 1
+        idx
     }
 
     fn set_node(&mut self, node: &Node) {
@@ -96,11 +96,15 @@ impl Node {
         self.expandable_moves.is_empty() && !self.children.is_empty()
     }
 
+    fn is_terminal(&self) -> bool {
+        Backgammon::check_win(self.state.board, self.player)
+    }
+
     fn ucb(&self, store: &NodeStore) -> f32 {
         match self.parent {
             Some(parent_idx) => {
                 let parent = store.get_node(parent_idx);
-                let q_value = 1.0 - (self.value.div(self.visits));
+                let q_value = self.value.div(self.visits);
                 q_value + (CONFIG.c * parent.visits.ln().div(self.visits).sqrt())
             }
             None => f32::INFINITY,
@@ -125,6 +129,7 @@ impl Node {
             -self.player,
         );
         self.children.push(child_idx);
+        store.set_node(self);
         child_idx
     }
 
@@ -157,7 +162,8 @@ impl Node {
     }
 }
 
-fn select(node: Node, store: &NodeStore) -> Node {
+fn select(node_idx: usize, store: &NodeStore) -> Node {
+    let node = store.get_node(node_idx);
     node.children
         .iter()
         .map(|child_idx| store.get_node(*child_idx))
@@ -169,8 +175,16 @@ fn select(node: Node, store: &NodeStore) -> Node {
         .expect("select called on node without children!")
 }
 
+fn select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
+    let node = store.get_node(node_idx);
+    if node.children.is_empty() {
+        return node.idx;
+    }
+    select_leaf_node(select(node_idx, store).idx, store)
+}
+
 fn backpropagate(node_idx: usize, result: f32, store: &mut NodeStore) {
-    let mut node = store.get_node_as_mut(node_idx);
+    let node = store.get_node_as_mut(node_idx);
     node.visits += 1.0;
     node.value += result;
     if let Some(parent) = node.parent {
@@ -187,23 +201,31 @@ const CONFIG: MctsConfig = MctsConfig {
     c: 1.0,
 };
 
-fn mct_search(state: Backgammon, player: i8) -> Actions {
+pub fn mct_search(state: Backgammon, player: i8) -> Actions {
     let mut store = NodeStore::new();
-    let curr_node_idx = store.add_node(state, None, None, player);
+    let root_node_idx = store.add_node(state, None, None, player);
 
-    for iteration in 0..CONFIG.iterations {
+    for _ in 0..CONFIG.iterations {
         // Don't forget to save the node later into the store
-        let mut curr_node = store.get_node(curr_node_idx);
+        let idx = select_leaf_node(root_node_idx, &store);
+        let mut selected_node = store.get_node(idx);
 
-        if !curr_node.is_fully_expanded() {
-            let mut new_node_idx = curr_node.expand(&mut store);
+        if selected_node.is_terminal() {
+            let result = selected_node.simulate();
+            backpropagate(selected_node.idx, result, &mut store);
+        }
+
+        while !selected_node.is_fully_expanded() {
+            let new_node_idx = selected_node.expand(&mut store);
             let mut new_node = store.get_node(new_node_idx);
             let result = new_node.simulate();
-            backpropagate(new_node_idx, result, &mut store);
-        }
+            backpropagate(new_node_idx, result, &mut store)
+        }  
+
         // example node save
-        store.set_node(&curr_node)
+        store.set_node(&selected_node)
     }
 
-    unimplemented!()
+    select(root_node_idx, &store).action_taken
+        .expect("No action taken found.")
 }
