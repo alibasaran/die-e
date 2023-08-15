@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, ops::Div};
 
 use crate::backgammon::{Actions, Backgammon, Board};
+use indicatif::{ProgressBar, ProgressIterator};
 use rand::{seq::SliceRandom, Rng};
 
 #[derive(Clone, Debug)]
@@ -219,19 +220,17 @@ struct MctsConfig {
 }
 
 const CONFIG: MctsConfig = MctsConfig {
-    iterations: 1000,
+    iterations: 800,
     c: std::f32::consts::SQRT_2,
-    simulate_round_limit: 100,
+    simulate_round_limit: 200,
 };
 
 pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
     let mut store = NodeStore::new();
     let root_node_idx = store.add_node(state, None, None, player, roll);
 
-    for i in 0..CONFIG.iterations {
-        // if i % 100 == 0 {
-        //     println!("{}", i);
-        // }
+    let pb_iter = (0..CONFIG.iterations).progress().with_message("MCTS");
+    for _ in pb_iter {
         // Don't forget to save the node later into the store
         let idx = select_leaf_node(root_node_idx, &store);
         let mut selected_node = store.get_node(idx);
@@ -248,7 +247,8 @@ pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
             backpropagate(new_node_idx, result, &mut store)
         }
     }
-    select_win_pct(root_node_idx, &store).action_taken
+    select_win_pct(root_node_idx, &store)
+        .action_taken
         .expect("No action taken found.")
 }
 

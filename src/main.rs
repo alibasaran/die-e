@@ -46,6 +46,6 @@ fn main() {
         bg.board = new_state;
     }
 
-
-
+    let winner = Backgammon::check_win_without_player(bg.board).unwrap();
+    println!("Winner is player {}", winner)
 }
