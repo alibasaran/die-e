@@ -16,6 +16,11 @@ struct Node {
     player: i8,
 }
 
+pub fn roll_die() -> (u8, u8) {
+    let mut rng = rand::thread_rng();
+    (rng.gen_range(1..=6), rng.gen_range(1..=6))
+}
+
 #[derive(Clone)]
 struct NodeStore {
     nodes: Vec<Node>,
@@ -32,9 +37,10 @@ impl NodeStore {
         parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
+        roll: (u8, u8)
     ) -> usize {
         let idx = self.nodes.len();
-        let new_node = Node::new(state, idx, parent, action_taken, player);
+        let new_node = Node::new(state, idx, parent, action_taken, player, roll);
         self.nodes.push(new_node);
         idx
     }
@@ -75,9 +81,8 @@ impl Node {
         parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
+        roll: (u8, u8)
     ) -> Self {
-        let mut rng = rand::thread_rng();
-        let roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
         let moves = Backgammon::get_valid_moves(roll, state.board, player);
         Node {
             state,
@@ -122,11 +127,13 @@ impl Node {
             Backgammon::get_next_state(self.state.board, action_taken.clone(), self.player);
         let child_backgammon = Backgammon::init_with_board(next_state);
 
+        let roll = roll_die();
         let child_idx = store.add_node(
             child_backgammon,
             Some(self.idx),
             Some(action_taken),
             -self.player,
+            roll
         );
         self.children.push(child_idx);
         store.set_node(self);
@@ -134,27 +141,26 @@ impl Node {
     }
 
     fn simulate(&mut self, player: i8) -> f32 {
-        Self::simulate_helper(self.state.board, self.player, player)
-    }
-
-    fn simulate_helper(state: Board, curr_player: i8, player: i8) -> f32 {
-        if let Some(winner) = Backgammon::check_win_without_player(state) {
-            return (((winner / player) + 1) / 2) as f32;
-        }
-        // Backgammon::display_board(&state);
         let mut rng = rand::thread_rng();
-        let roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
-
-        let valid_moves = Backgammon::get_valid_moves(roll, state, curr_player);
-
-        if !valid_moves.is_empty() {
-            let move_to_play = valid_moves.choose(&mut rng).unwrap();
-            // println!("Move to play: {:?}", move_to_play);
-            let next_state = Backgammon::get_next_state(state, move_to_play.to_vec(), curr_player);
-            Self::simulate_helper(next_state, -curr_player, player)
-        } else {
-            Self::simulate_helper(state, -curr_player, player)
+        let mut curr_state = self.state.board;
+        let mut curr_player = self.player;
+    
+        for _ in 0..CONFIG.simulate_round_limit {
+            if let Some(winner) = Backgammon::check_win_without_player(curr_state) {
+                return (((winner / player) + 1) / 2) as f32;
+            }
+    
+            let roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
+            let valid_moves = Backgammon::get_valid_moves(roll, curr_state, curr_player);
+    
+            if !valid_moves.is_empty() {
+                let move_to_play = valid_moves.choose(&mut rng).unwrap();
+                curr_state = Backgammon::get_next_state(curr_state, move_to_play.to_vec(), curr_player);
+            }
+    
+            curr_player = -curr_player;
         }
+        rng.gen_range(0..=1) as f32
     }
 }
 
@@ -191,15 +197,17 @@ fn backpropagate(node_idx: usize, result: f32, store: &mut NodeStore) {
 struct MctsConfig {
     iterations: usize,
     c: f32,
+    simulate_round_limit: usize,
 }
 const CONFIG: MctsConfig = MctsConfig {
     iterations: 100,
     c: 0.14,
+    simulate_round_limit: 100
 };
 
-pub fn mct_search(state: Backgammon, player: i8) -> Actions {
+pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
     let mut store = NodeStore::new();
-    let root_node_idx = store.add_node(state, None, None, player);
+    let root_node_idx = store.add_node(state, None, None, player, roll);
 
     for i in 0..CONFIG.iterations {
         println!("{}", i);
@@ -218,9 +226,6 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
             let result = new_node.simulate(player);
             backpropagate(new_node_idx, result, &mut store)
         }  
-
-        // example node save
-        // store.set_node(&selected_node)
     }
 
     select(root_node_idx, &store).action_taken
