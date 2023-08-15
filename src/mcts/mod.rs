@@ -116,6 +116,10 @@ impl Node {
         }
     }
 
+    fn win_pct(&self) -> f32 {
+        self.value.div(self.visits)
+    }
+
     fn expand(&mut self, store: &mut NodeStore) -> usize {
         if self.expandable_moves.is_empty() {
             panic!("expand() called on node with no expandable moves")
@@ -165,7 +169,7 @@ impl Node {
     }
 }
 
-fn select(node_idx: usize, store: &NodeStore) -> Node {
+fn select_ucb(node_idx: usize, store: &NodeStore) -> Node {
     let node = store.get_node(node_idx);
     node.children
         .iter()
@@ -175,7 +179,20 @@ fn select(node_idx: usize, store: &NodeStore) -> Node {
                 .partial_cmp(&b.ucb(store))
                 .unwrap_or(Ordering::Equal)
         })
-        .expect("select called on node without children!")
+        .expect("select_ucb called on node without children!")
+}
+
+fn select_win_pct(node_idx: usize, store: &NodeStore) -> Node {
+    let node = store.get_node(node_idx);
+    node.children
+        .iter()
+        .map(|child_idx| store.get_node(*child_idx))
+        .max_by(|a, b| {
+            a.win_pct()
+                .partial_cmp(&b.win_pct())
+                .unwrap_or(Ordering::Equal)
+        })
+        .expect("select_win_pct called on node without children!")
 }
 
 fn select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
@@ -183,7 +200,7 @@ fn select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
     if node.children.is_empty() {
         return node.idx;
     }
-    select_leaf_node(select(node_idx, store).idx, store)
+    select_leaf_node(select_ucb(node_idx, store).idx, store)
 }
 
 fn backpropagate(node_idx: usize, result: f32, store: &mut NodeStore) {
@@ -202,7 +219,7 @@ struct MctsConfig {
 }
 
 const CONFIG: MctsConfig = MctsConfig {
-    iterations: 10000,
+    iterations: 1000,
     c: std::f32::consts::SQRT_2,
     simulate_round_limit: 100,
 };
@@ -212,9 +229,9 @@ pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
     let root_node_idx = store.add_node(state, None, None, player, roll);
 
     for i in 0..CONFIG.iterations {
-        if i % 100 == 0 {
-            println!("{}", i);
-        }
+        // if i % 100 == 0 {
+        //     println!("{}", i);
+        // }
         // Don't forget to save the node later into the store
         let idx = select_leaf_node(root_node_idx, &store);
         let mut selected_node = store.get_node(idx);
@@ -231,12 +248,19 @@ pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
             backpropagate(new_node_idx, result, &mut store)
         }
     }
-
-    pretty_print_tree(&store, 0, 1, 0);
-
-    select(root_node_idx, &store)
-        .action_taken
+    select_win_pct(root_node_idx, &store).action_taken
         .expect("No action taken found.")
+}
+
+pub fn random_play(state: Board, player: i8, roll: (u8, u8)) -> Actions {
+    let mut rng = rand::thread_rng();
+    let moves = Backgammon::get_valid_moves(roll, state, player);
+
+    if moves.is_empty() {
+        return vec![];
+    }
+
+    return moves.choose(&mut rng).unwrap().to_vec();
 }
 
 fn pretty_print_tree(node_store: &NodeStore, index: usize, depth: usize, current_depth: usize) {
@@ -248,13 +272,14 @@ fn pretty_print_tree(node_store: &NodeStore, index: usize, depth: usize, current
     let indent = "  ".repeat(current_depth);
 
     println!(
-        "{}[{}] Action: {:?} \t\tVisits: {:.2} \tValue: {:.2} \tUCB: {:.5}",
+        "{}[{}] Action: {:?} \t\tVisits: {:.2} \tValue: {:.2} \tUCB: {:.5} \tWin_Pct: {:.3}",
         indent,
         index,
         node.action_taken,
         node.visits,
         node.value,
-        node.ucb(node_store)
+        node.ucb(node_store),
+        node.win_pct()
     );
 
     for &child_index in &node.children {
