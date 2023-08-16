@@ -1,11 +1,10 @@
 use std::{cmp::Ordering, ops::Div};
-
 use crate::backgammon::{Actions, Backgammon, Board};
-use indicatif::{ProgressBar, ProgressIterator};
+use indicatif::ProgressIterator;
 use rand::{seq::SliceRandom, Rng};
 
 #[derive(Clone, Debug)]
-struct Node {
+pub struct Node {
     state: Backgammon,
     idx: usize,
     parent: Option<usize>,
@@ -23,7 +22,7 @@ pub fn roll_die() -> (u8, u8) {
 }
 
 #[derive(Clone)]
-struct NodeStore {
+pub struct NodeStore {
     nodes: Vec<Node>,
 }
 
@@ -60,23 +59,7 @@ impl NodeStore {
 }
 
 impl Node {
-    fn copy(&self) -> Node {
-        Node {
-            state: self.state.clone(),
-            idx: self.idx,
-            parent: self.parent,
-            children: self.children.clone(),
-            visits: self.visits,
-            value: self.value,
-            action_taken: self.action_taken.clone(),
-            expandable_moves: self.expandable_moves.clone(),
-            player: self.player,
-        }
-    }
-}
-
-impl Node {
-    fn new(
+    pub fn new(
         state: Backgammon,
         idx: usize,
         parent: Option<usize>,
@@ -129,7 +112,7 @@ impl Node {
 
         let action_taken = self.expandable_moves.remove(move_idx);
         let next_state =
-            Backgammon::get_next_state(self.state.board, action_taken.clone(), self.player);
+            Backgammon::get_next_state(self.state.board, &action_taken, self.player);
         let child_backgammon = Backgammon::init_with_board(next_state);
 
         let roll = roll_die();
@@ -145,7 +128,7 @@ impl Node {
         child_idx
     }
 
-    fn simulate(&mut self, player: i8) -> f32 {
+    pub fn simulate(&mut self, player: i8) -> f32 {
         let mut rng = rand::thread_rng();
         let mut curr_state = self.state.board;
         let mut curr_player = self.player;
@@ -161,7 +144,7 @@ impl Node {
             if !valid_moves.is_empty() {
                 let move_to_play = valid_moves.choose(&mut rng).unwrap();
                 curr_state =
-                    Backgammon::get_next_state(curr_state, move_to_play.to_vec(), curr_player);
+                    Backgammon::get_next_state(curr_state, move_to_play, curr_player);
             }
 
             curr_player = -curr_player;
@@ -183,17 +166,20 @@ fn select_ucb(node_idx: usize, store: &NodeStore) -> Node {
         .expect("select_ucb called on node without children!")
 }
 
-fn select_win_pct(node_idx: usize, store: &NodeStore) -> Node {
+fn select_win_pct(node_idx: usize, store: &NodeStore) -> Actions {
     let node = store.get_node(node_idx);
-    node.children
+    let best_child = node.children
         .iter()
         .map(|child_idx| store.get_node(*child_idx))
         .max_by(|a, b| {
             a.win_pct()
                 .partial_cmp(&b.win_pct())
                 .unwrap_or(Ordering::Equal)
-        })
-        .expect("select_win_pct called on node without children!")
+        });
+    match best_child {
+        Some(child) => child.action_taken.unwrap_or(vec![]),
+        None => vec![]
+    }
 }
 
 fn select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
@@ -226,9 +212,13 @@ const CONFIG: MctsConfig = MctsConfig {
 };
 
 pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
+    // Check if game already is terminal at root
+    if Backgammon::check_win_without_player(state.board).is_some() {
+        return vec![]
+    }
+    
     let mut store = NodeStore::new();
     let root_node_idx = store.add_node(state, None, None, player, roll);
-
     let pb_iter = (0..CONFIG.iterations).progress().with_message("MCTS");
     for _ in pb_iter {
         // Don't forget to save the node later into the store
@@ -248,8 +238,6 @@ pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {
         }
     }
     select_win_pct(root_node_idx, &store)
-        .action_taken
-        .unwrap_or(vec![])
 }
 
 pub fn random_play(state: Board, player: i8, roll: (u8, u8)) -> Actions {

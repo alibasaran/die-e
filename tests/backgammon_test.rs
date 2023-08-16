@@ -36,7 +36,7 @@ mod get_next_state {
             (0, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, 1), expected);
     }
 
     #[test]
@@ -50,7 +50,7 @@ mod get_next_state {
             (0, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, -1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, -1), expected);
     }
 
     #[test]
@@ -64,7 +64,7 @@ mod get_next_state {
             (0, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, 1), expected);
     }
 
     #[test]
@@ -84,7 +84,7 @@ mod get_next_state {
             (0, 2),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, -1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, -1), expected);
     }
 
     #[test]
@@ -104,7 +104,7 @@ mod get_next_state {
             (2, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, 1), expected);
     }
 
     #[test]
@@ -124,7 +124,7 @@ mod get_next_state {
             (0, 0),
             (2, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, -1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, -1), expected);
     }
 
     #[test]
@@ -144,7 +144,7 @@ mod get_next_state {
             (0, 0),
             (0, 2),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, 1), expected);
     }
 
     #[test]
@@ -164,7 +164,7 @@ mod get_next_state {
             (0, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, -1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, -1), expected);
     }
 
     #[test]
@@ -184,7 +184,7 @@ mod get_next_state {
             (0, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, 1), expected);
     }
 
     #[test]
@@ -204,7 +204,7 @@ mod get_next_state {
             (0, 2),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, -1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, -1), expected);
     }
 
     #[test]
@@ -224,7 +224,7 @@ mod get_next_state {
             (2, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, 1), expected);
     }
 
     #[test]
@@ -244,7 +244,7 @@ mod get_next_state {
             (1, 0),
             (0, 0),
         );
-        assert_eq!(Backgammon::get_next_state(state, actions, 1), expected);
+        assert_eq!(Backgammon::get_next_state(state, &actions, 1), expected);
     }
 }
 

@@ -1,4 +1,6 @@
 use std::{collections::HashSet, fmt, vec};
+use serde::{Deserialize, Serialize};
+
 // (the board itself, pieces_hit, pieces_collected)
 pub type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
@@ -50,7 +52,7 @@ impl ActionNode {
         Ok(())
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Backgammon {
     // board:: 24 poz
     pub board: Board,
@@ -144,7 +146,7 @@ impl Backgammon {
     }
 
     // for the player field, -1 or 1 is used to indicate which player's move it is
-    pub fn get_next_state(mut state: Board, actions: Actions, player: i8) -> Board {
+    pub fn get_next_state(mut state: Board, actions: &Actions, player: i8) -> Board {
         for &(from, to) in actions.iter() {
             if to == -1 {
                 // Player is bearing off a checker
@@ -399,7 +401,7 @@ impl Backgammon {
         state: Board,
         player: i8,
     ) -> Vec<ActionNode> {
-        let new_state = Self::get_next_state(state, vec![action], player);
+        let new_state = Self::get_next_state(state, &vec![action], player);
         // Remove the move played from all moves
         let mut new_moves = moves.to_vec();
         let index_to_remove = new_moves.iter().position(|&m| m == move_used).unwrap();
@@ -451,7 +453,7 @@ impl Backgammon {
             let mut current_state = initial_state;
 
             for action in &sequence {
-                current_state = Self::get_next_state(current_state, vec![*action], player);
+                current_state = Self::get_next_state(current_state, &vec![*action], player);
             }
 
             if seen_states.insert(current_state) {
