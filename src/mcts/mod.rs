@@ -206,9 +206,9 @@ struct MctsConfig {
 }
 
 const CONFIG: MctsConfig = MctsConfig {
-    iterations: 800,
+    iterations: 100,
     c: std::f32::consts::SQRT_2,
-    simulate_round_limit: 200,
+    simulate_round_limit: 100,
 };
 
 pub fn mct_search(state: Backgammon, player: i8, roll: (u8, u8)) -> Actions {

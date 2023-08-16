@@ -13,6 +13,7 @@ use std::path::Path;
 use std::vec;
 use rand::thread_rng;
 use rand::seq::SliceRandom;
+use rayon::prelude::*;
 
 use crate::mcts::roll_die;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -61,9 +62,14 @@ fn save_game(game: &Game) -> Result<(), Box<dyn std::error::Error>> {
 
 fn main() {
     // let game = Game::new(Agent::Mcts, Agent::Random, Backgammon::new());
-    let game = play_mcts_vs_random();
-    dbg!("{}", &game);
-    let _ = save_game(&game);
+    // let _ = save_game(&game);
+    // Set rayon to use 3 threads
+    rayon::ThreadPoolBuilder::new().num_threads(3).build_global().unwrap();
+    (0..10).into_par_iter().for_each(|_| {
+        let game = play_mcts_vs_random();
+        dbg!("{}", &game);
+        let _ = save_game(&game);
+    });
 }
 
 fn old_main() {
