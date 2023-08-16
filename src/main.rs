@@ -7,8 +7,9 @@ use mcts::{mct_search, random_play};
 use serde::{Deserialize, Serialize};
 use nanoid::nanoid;
 // use serde::{Serialize, Deserialize};
-use std::fs::File;
-use std::io::Write;
+use std::fs::{File, self};
+use std::io::{Write, Read};
+use std::ops::{Div, Mul};
 use std::path::Path;
 use std::vec;
 use rand::thread_rng;
@@ -60,12 +61,88 @@ fn save_game(game: &Game) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn load_game(directory: &str, filename: &str) -> Result<Game, Box<dyn std::error::Error>> {
+    let path = Path::new(directory).join(filename);
+    let file = File::open(path)?;
+
+    let mut contents = String::new();
+    let mut reader = std::io::BufReader::new(file);
+    reader.read_to_string(&mut contents)?;
+
+    let game: Game = serde_json::from_str(&contents)?;
+
+    Ok(game)
+}
+
+fn load_all_games(directory: &str) -> Result<Vec<Game>, Box<dyn std::error::Error>> {
+    let mut games = Vec::new();
+
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        if entry.path().is_file() {
+            let file_name = entry.file_name().into_string().unwrap();
+            if file_name.ends_with(".json") {
+                let game = load_game(directory, &file_name)?;
+                games.push(game);
+            }
+        }
+    }
+
+    Ok(games)
+}
+
+fn print_all_game_winners() {
+    let games_directory = "./games/mcts_vs_random";
+    if let Ok(games) = load_all_games(games_directory) {
+        println!("Loaded {} games successfully!\n", games.len());
+        for (_, game) in games.iter().enumerate() {
+            println!("Game {}:", &game.id);
+            println!("\t Winner: {:?}", game.winner)
+        }
+    } else {
+        eprintln!("Error loading games from directory: {}", games_directory);
+    }
+}
+
+fn print_out_game(directory: &str, filename: &str) {
+    let game = load_game(directory, filename).unwrap();
+    let mut curr_state = game.initial_state.board;
+    println!("Player1: {:?} Player 2: {:?}", game.player1, game.player2);
+    println!("Turns played: {}", &game.turns.len());
+    for (idx, turn) in game.turns.iter().enumerate() {
+        let player = if idx % 2 == 0 {-1} else {1};
+        println!("[{}] {:?}", idx, turn);
+        curr_state = Backgammon::get_next_state(curr_state, &turn.action, player);
+        Backgammon::display_board(&curr_state);
+    }
+    println!("Winner: {:?}", game.winner)
+}
+
+/*
+nR8X1p-18S3r8i1N0z9dr
+XPyhpUHzsEQNV50fZiAku
+i28yVaNn7ezdeHXDg6b6t
+odISHyAxLq_akRO68vQY0
+CWYa2Xvl5A8rhaF1JZIx4
+lFgDY450qEWIMhf-g3P6r
+D6-KLtFq2cDHc5Glk330X
+O8xGK3vYZPTeBamSkooJx
+DHDEy5XzhXOuCM240gGrI
+dwTqcyGzRNC43yX-LewvO
+1piHmxc-Ktz7Kd1645BwV
+KmlNb3QyzBld6rDK6Y6dX
+PL_s4k0qocJRM6gut2-eA
+hCr0-QnW98zHUdBCniess
+czHFVB_iyetkyykxn1rcJ
+0XNaLo3BTCcgOVpMzMtTy
+d6aGH6_F9egx9OpBISBHR
+*/
+
 fn main() {
-    // let game = Game::new(Agent::Mcts, Agent::Random, Backgammon::new());
-    // let _ = save_game(&game);
-    // Set rayon to use 3 threads
-    rayon::ThreadPoolBuilder::new().num_threads(3).build_global().unwrap();
-    (0..10).into_par_iter().for_each(|_| {
+    // print_all_game_winners();
+    // Set rayon to use x threads
+    rayon::ThreadPoolBuilder::new().num_threads(5).build_global().unwrap();
+    (0..100).into_par_iter().for_each(|_| {
         let game = play_mcts_vs_random();
         dbg!("{}", &game);
         let _ = save_game(&game);
