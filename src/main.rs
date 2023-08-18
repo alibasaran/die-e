@@ -1,7 +1,10 @@
+use alphazero::encoding::encode;
+use backgammon::Actions;
 pub use backgammon::Backgammon;
 
 pub mod backgammon;
 pub mod mcts;
+pub mod alphazero;
 
 use mcts::{mct_search, random_play};
 use serde::{Deserialize, Serialize};
@@ -16,6 +19,7 @@ use rand::thread_rng;
 use rand::seq::SliceRandom;
 use rayon::prelude::*;
 
+use crate::alphazero::encoding::decode;
 use crate::mcts::roll_die;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 enum Agent {
@@ -138,15 +142,25 @@ czHFVB_iyetkyykxn1rcJ
 d6aGH6_F9egx9OpBISBHR
 */
 
+// fn main() {
+//     // print_all_game_winners();
+//     // Set rayon to use x threads
+//     rayon::ThreadPoolBuilder::new().num_threads(5).build_global().unwrap();
+//     (0..100).into_par_iter().for_each(|_| {
+//         let game = play_mcts_vs_random();
+//         dbg!("{}", &game);
+//         let _ = save_game(&game);
+//     });
+// }
+
 fn main() {
-    // print_all_game_winners();
-    // Set rayon to use x threads
-    rayon::ThreadPoolBuilder::new().num_threads(5).build_global().unwrap();
-    (0..100).into_par_iter().for_each(|_| {
-        let game = play_mcts_vs_random();
-        dbg!("{}", &game);
-        let _ = save_game(&game);
-    });
+    let moves: Actions = vec![(23, 22), (22, 16)];
+    let roll = (6, 1);
+    println!("Before encoding: {:?}", moves);
+    let encoded = encode(moves, roll, -1);
+    println!("Encoded: {}", encoded);
+    let decoded = decode(encoded, roll, -1);
+    println!("Decoded: {:?}", decoded);
 }
 
 fn old_main() {
