@@ -1,4 +1,5 @@
 use std::{collections::HashSet, fmt, vec};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 // (the board itself, pieces_hit, pieces_collected)
@@ -54,12 +55,8 @@ impl ActionNode {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Backgammon {
-    // board:: 24 poz
     pub board: Board,
-    // 15'er tas
-    // kirik taslar [beyaz, siyah]
-    // toplanmis taslar [beyaz, siyah]
-    // hamle sirasi
+    pub roll: (u8, u8)
 }
 
 impl Default for Backgammon {
@@ -78,13 +75,21 @@ impl Backgammon {
                 (0, 0),
                 (0, 0),
             ),
+            roll: (0, 0),
         }
     }
 
     pub fn init_with_board(board: Board) -> Self {
         Backgammon {
-            board
+            board,
+            roll: (0, 0)
         }
+    }
+
+    pub fn roll_die(&mut self) -> (u8, u8) {
+        let mut rng = rand::thread_rng();
+        self.roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
+        self.roll
     }
 
     pub fn display_board(board: &Board) {
@@ -223,16 +228,16 @@ impl Backgammon {
         }
     }
 
-    pub fn get_valid_moves(roll: (u8, u8), state: Board, player: i8) -> Vec<Actions> {
-        let all_moves: Vec<u8> = match roll {
+    pub fn get_valid_moves(&self, player: i8) -> Vec<Actions> {
+        let all_moves: Vec<u8> = match self.roll {
             (r0, r1) if r0 == r1 => vec![r0; 4],
             (r0, r1) if r0 > r1 => vec![r0, r1],
             (r0, r1) => vec![r1, r0],
         };
-        let action_trees = Self::_get_action_trees(&all_moves, state, player);
+        let action_trees = Self::_get_action_trees(&all_moves, self.board, player);
         // parse trees into actions here
         let actions = Self::extract_sequences_list(action_trees);
-        Self::remove_duplicate_states(state, actions, player)
+        Self::remove_duplicate_states(self.board, actions, player)
     }
 
     fn _get_action_trees(moves: &[u8], state: Board, player: i8) -> Vec<ActionNode> {

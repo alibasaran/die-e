@@ -20,7 +20,6 @@ use rand::seq::SliceRandom;
 use rayon::prelude::*;
 
 use crate::alphazero::encoding::decode;
-use crate::mcts::roll_die;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 enum Agent {
     Random, Mcts, None
@@ -167,24 +166,22 @@ fn old_main() {
     let mut bg = Backgammon::new();
 
     while Backgammon::check_win_without_player(bg.board).is_none() {
-        let player_1_roll = roll_die();
-        let player_1_action = mct_search(bg.clone(), -1, player_1_roll);
+        let player_1_action = mct_search(bg.clone(), -1);
 
         let new_state = Backgammon::get_next_state(bg.board, 
             &player_1_action, -1);
 
-        println!("Player 1, roll: {:?}, action: {:?}", player_1_roll, player_1_action);
+        println!("Player 1, action: {:?}", player_1_action);
         Backgammon::display_board(&new_state);
 
         bg.board = new_state;
 
-        let player_2_roll = roll_die();
-        let player_2_action = random_play(bg.board, 1, player_2_roll);
+        let player_2_action = random_play(&mut bg, 1);
 
         let new_state = Backgammon::get_next_state(bg.board, 
             &player_2_action, 1);
 
-        println!("Player 2, roll: {:?}, action: {:?}", player_2_roll, player_2_action);
+        println!("Player 2, action: {:?}", player_2_action);
         Backgammon::display_board(&new_state);
 
         bg.board = new_state;
@@ -214,14 +211,14 @@ fn play_mcts_vs_random() -> Game {
 
     while Backgammon::check_win_without_player(current_state.board).is_none() {
         // Roll die
-        let roll = roll_die();
+        let roll = current_state.roll_die();
         println!("Current player: {:?}", curr_player);
-        println!("\tRolled die: {:?}", roll);
+        println!("\tRolled die: {:?}", current_state.roll);
 
         // Select action depending on the current agent
         let action: Vec<(i8, i8)> = match curr_player {
-            Agent::Mcts => mct_search(current_state.clone(), mcts_idx, roll),
-            Agent::Random => random_play(current_state.board, -mcts_idx, roll),
+            Agent::Mcts => mct_search(current_state.clone(), mcts_idx),
+            Agent::Random => random_play(&current_state, -mcts_idx),
             Agent::None => unreachable!(),
         };
         println!("\tAction: {:?}", action);

@@ -868,56 +868,58 @@ mod get_valid_moves {
 
     #[test]
     fn it_should_return_empty_for_no_possible_moves() {
-        let mut state = Backgammon::get_initial_state();
-        state.0 = [0; 24];
-        state.0[20] = -1;
-        state.0[19] = 2;
-        state.0[18] = 2;
-        let roll = (1, 2);
-        assert!(Backgammon::get_valid_moves(roll, state, -1).is_empty());
+        let mut bg = Backgammon::new();
+        bg.board.0 = [0; 24];
+        bg.board.0[20] = -1;
+        bg.board.0[19] = 2;
+        bg.board.0[18] = 2;
+        bg.roll = (1, 2);
+        assert!(bg.get_valid_moves(-1).is_empty());
     }
 
     #[test]
     fn it_should_return_same_for_inverted_roll() {
-        let mut state = Backgammon::get_initial_state();
-        state.0 = [0; 24];
-        state.0[20] = -1;
-        let roll_1 = (1, 2);
-        let roll_2 = (2, 1);
+        let mut bg = Backgammon::new();
+        bg.board.0 = [0; 24];
+        bg.board.0[20] = -1;
+        bg.roll = (1, 2);
+        let moves_1 = bg.get_valid_moves(-1);
+        bg.roll = (2, 1);
+        let moves_2 = bg.get_valid_moves(-1);
         assert_eq!(
-            Backgammon::get_valid_moves(roll_1, state, -1),
-            Backgammon::get_valid_moves(roll_2, state, -1)
+            moves_1,
+            moves_2
         );
     }
 
     #[test]
     fn it_should_work_for_normal_roll() {
-        let mut state = Backgammon::get_initial_state();
-        state.0 = [0; 24];
-        state.0[20] = -1;
-        let roll = (1, 2);
+        let mut bg = Backgammon::new();
+        bg.board.0 = [0; 24];
+        bg.board.0[20] = -1;
+        bg.roll = (1, 2);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 17)]];
-        assert_eq!(Backgammon::get_valid_moves(roll, state, -1), expected);
+        assert_eq!(bg.get_valid_moves(-1), expected);
     }
 
     #[test]
     fn it_should_work_for_entry_move() {
-        let mut state = Backgammon::get_initial_state();
-        state.0 = [0; 24];
-        state.0[21] = 2;
-        state.1 .0 = 1;
-        let roll = (1, 2);
+        let mut bg = Backgammon::new();
+        bg.board.0 = [0; 24];
+        bg.board.0[21] = 2;
+        bg.board.1 .0 = 1;
+        bg.roll = (1, 2);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(-1, 23)], vec![(-1, 22)]];
-        assert_eq!(Backgammon::get_valid_moves(roll, state, -1), expected);
+        assert_eq!(bg.get_valid_moves(-1), expected);
     }
 
     #[test]
     fn it_should_work_for_double_roll() {
-        let mut state = Backgammon::get_initial_state();
-        state.0 = [0; 24];
-        state.0[20] = -1;
-        let roll = (1, 1);
+        let mut bg = Backgammon::new();
+        bg.board.0 = [0; 24];
+        bg.board.0[20] = -1;
+        bg.roll = (1, 1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 18), (18, 17), (17, 16)]];
-        assert_eq!(Backgammon::get_valid_moves(roll, state, -1), expected);
+        assert_eq!(bg.get_valid_moves(-1), expected);
     }
 }
