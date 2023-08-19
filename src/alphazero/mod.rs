@@ -18,6 +18,3 @@ fn res_net(vs: &nn::Path) -> impl Module {
         .add_fn(|xs| xs.relu())
         .add(nn::linear(vs, HIDDEN_NODES, LABELS, Default::default()))
 }
-
-
-
