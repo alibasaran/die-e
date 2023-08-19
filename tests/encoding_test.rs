@@ -4,7 +4,199 @@ extern crate proptest;
 use die_e::alphazero::encoding::*;
 
 #[cfg(test)]
-mod encoding {
+mod encoding_single_and_zero_moves {
+    use super::*;
+
+    #[test]
+    fn original_should_be_same_as_decoded_empty_actions() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_normal_hrf_player_1() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(4, 2)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_normal_hrs_player_1() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(4, 3)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_bar_hrf_player_1() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(-1, 22)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_bar_hrs_player_1() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(-1, 23)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrf_player_1() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(1, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrs_player_1() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(0, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrf_player_1_2() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (6, 3);
+        let actions: Vec<(i8, i8)> = vec![(1, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrs_player_1_2() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (6, 3);
+        let actions: Vec<(i8, i8)> = vec![(2, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_normal_hrf_player_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(19, 21)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_normal_hrs_player_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(19, 20)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_bar_hrf_player_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(-1, 1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_bar_hrs_player_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(-1, 0)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrf_player_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(22, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrs_player_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(23, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrf_player_2_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (6, 3);
+        let actions: Vec<(i8, i8)> = vec![(22, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_collection_hrs_player_2_2() {
+        let player: i8 = 1;
+        let roll: (u8, u8) = (6, 3);
+        let actions: Vec<(i8, i8)> = vec![(21, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+}
+
+#[cfg(test)]
+mod encoding_double_moves {
     use super::*;
 
     #[test]
@@ -283,6 +475,17 @@ mod encoding_exceptional_cases {
         let actions: Vec<(i8, i8)> = vec![(0, -1), (0, -1)];
         let enc = encode(actions.clone(), roll, player);
         let dec = decode(0, roll, player);
+        println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
+        assert_eq!(actions, dec);
+    }
+
+    #[test]
+    fn original_should_be_same_as_decoded_when_enc_is_0() {
+        let player: i8 = -1;
+        let roll: (u8, u8) = (2, 1);
+        let actions: Vec<(i8, i8)> = vec![(0, -1), (0, -1)];
+        let enc = encode(actions.clone(), roll, player);
+        let dec = decode(enc, roll, player);
         println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
         assert_eq!(actions, dec);
     }
