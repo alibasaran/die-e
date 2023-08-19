@@ -4,34 +4,64 @@ use crate::backgammon::Actions;
 pub fn encode(actions: Actions, roll: (u8, u8), _player: i8) -> u32 {
     assert!(actions.len() <= 2, "encoding for actions > 2 is not yet implemented!");
 
-    let high_roll = if roll.0 > roll.1 {roll.0} else {roll.1};
+    if actions.is_empty() {
+        return 625;
+    }
+
+    let (high_roll, low_roll) = if roll.0 > roll.1 {(roll.0, roll.1)} else {(roll.1, roll.0)};
+    let mut low_roll_flag = false;
     let mut high_roll_first = false;
+
+    let mut minimum_roll_1: u8 = 0;
+    let mut minimum_roll_2: u8 = 0;
 
     let mut encode_sum: u32 = 0;
 
     if let Some((from, to)) = actions.first() {
         if *from == -1 && *to < 6 {
-            let dist = (to + 1) as u8;
-            high_roll_first = dist == high_roll;
+            minimum_roll_1 = (to + 1) as u8;
+            high_roll_first = minimum_roll_1 == high_roll;
             encode_sum += 24;
         } else if *from == -1 && *to > 17 {
-            let dist = (24 - to) as u8;
-            high_roll_first = dist == high_roll;
+            minimum_roll_1 = (24 - to) as u8;
+            high_roll_first = minimum_roll_1 == high_roll;
             encode_sum += 24;
+        } else if *to == -1 && *from < 6 {
+            minimum_roll_1 = (from - to) as u8;
+            high_roll_first = minimum_roll_1 <= high_roll;
+            encode_sum += *from as u32;
+        } else if *to == -1 && *from > 17 {
+            minimum_roll_1 = (24 - from) as u8;
+            high_roll_first = minimum_roll_1 <= high_roll;
+            encode_sum += *from as u32;
         } else {
-            let dist: u8 = (from - to).abs().try_into().unwrap();
-            high_roll_first = dist == high_roll;
+            minimum_roll_1 = (from - to).abs().try_into().unwrap();
+            low_roll_flag = minimum_roll_1 == low_roll;
+            high_roll_first = minimum_roll_1 == high_roll;
             encode_sum += *from as u32;
         }
     }
 
-    if let Some((from, _)) = actions.get(1) {
-        if *from == -1 {
+    if let Some((from, to)) = actions.get(1) {
+        if *from == -1 && *to < 6 {
+            minimum_roll_2 = (to + 1) as u8;
             encode_sum += 25 * 24
+        } else if *from == -1 && *to > 17 {
+            minimum_roll_2 = (24 - to) as u8;
+            encode_sum += 25 * 24
+        } else if *to == -1 && *from < 6 {
+            minimum_roll_2 = (from - to) as u8;
+            encode_sum += 25 * (*from as u32)
+        } else if *to == -1 && *from > 17 {
+            minimum_roll_2 = (24 - from) as u8;
+            encode_sum += 25 * (*from as u32)
         } else {
+            minimum_roll_2 = (from - to).abs().try_into().unwrap();
             encode_sum += 25 * (*from as u32)
         }
     }
+
+    high_roll_first = if low_roll_flag {false} else {minimum_roll_1 >= minimum_roll_2};
 
     if high_roll_first {
         encode_sum
@@ -42,6 +72,10 @@ pub fn encode(actions: Actions, roll: (u8, u8), _player: i8) -> u32 {
 }
 
 pub fn decode(action: u32, roll: (u8, u8), player: i8) -> Actions {
+    if action == 625 {
+        return vec![];
+    }
+
     // Check if the higher roll is made first
     let high_roll_first = action < 625;
 
