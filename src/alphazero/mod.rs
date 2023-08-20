@@ -5,6 +5,7 @@ const HIDDEN_NODES: i64 = 128;
 const LABELS: i64 = 10;
 
 pub mod encoding;
+pub mod old_encoding;
 pub mod nnet;
 
 fn res_net(vs: &nn::Path) -> impl Module {
