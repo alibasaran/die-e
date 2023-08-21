@@ -1,6 +1,12 @@
-use std::ops::Add;
+use std::{default, ops::Add};
 
-use tch::nn;
+use arrayvec::ArrayVec;
+use rayon::vec;
+use tch::{
+    nn::{self, ModuleT},
+    utils::has_mps,
+    Tensor,
+};
 
 /*
 Constants
@@ -9,7 +15,7 @@ retrieved from: https://www.chessprogramming.org/AlphaZero#Network_Architecture
 */
 
 const FILTERS: i64 = 256;
-const N_RES_BLOCKS: u8 = 19;
+const N_RES_BLOCKS: usize = 19;
 
 #[derive(Debug)]
 struct ResBlock {
@@ -45,4 +51,90 @@ impl ResBlock {
 /*
 TODO: Implement ResNet
 */
-struct ResNet {}
+#[derive(Debug)]
+struct ResNet {
+    vs: nn::VarStore,
+    init_block: nn::SequentialT,
+    res_layer: nn::SequentialT,
+    policy_head: nn::SequentialT,
+    value_head: nn::SequentialT,
+}
+
+const INPUT_SIZE: i64 = 1300; // arbitrary
+const POLICY_OUTPUT_SIZE: i64 = 1300; // arbitrary
+
+impl Default for ResNet {
+    fn default() -> Self {
+        let conv_config = nn::ConvConfig {
+            padding: 1,
+            ..Default::default()
+        };
+        let device = get_device();
+        println!("Device: {:?}", device);
+        let vs = nn::VarStore::new(device);
+        let root = vs.root();
+
+        let init_block = nn::seq_t()
+            .add(nn::conv2d(&root, INPUT_SIZE, FILTERS, 3, conv_config))
+            .add(nn::batch_norm2d(&root, FILTERS, Default::default()))
+            .add_fn(Tensor::relu);
+
+        let mut res_layer = nn::seq_t();
+        for _ in 0..N_RES_BLOCKS {
+            let res_block = ResBlock::new(&vs.root(), conv_config);
+            res_layer = res_layer.add(res_block);
+        }
+
+        let policy_head = nn::seq_t()
+            .add(nn::conv2d(&root, FILTERS, 2, 3, conv_config))
+            .add(nn::batch_norm2d(&root, 2, Default::default()))
+            .add_fn(Tensor::relu)
+            .add_fn(|x| x.flatten(1, -1))
+            .add(nn::linear(
+                &root,
+                2 * 1000, /* conv output size */
+                POLICY_OUTPUT_SIZE,
+                Default::default(),
+            ));
+
+        let value_head = nn::seq_t()
+            .add(nn::conv2d(&root, FILTERS, 1, 3, conv_config))
+            .add(nn::batch_norm2d(&root, 1, Default::default()))
+            .add_fn(Tensor::relu)
+            .add_fn(|x| x.flatten(1, -1))
+            .add(nn::linear(
+                root,
+                1 * 1000, /* conv output size */
+                1,
+                Default::default(),
+            ))
+            .add_fn(Tensor::tanh);
+
+        ResNet {
+            vs,
+            init_block,
+            res_layer,
+            policy_head,
+            value_head,
+        }
+    }
+}
+
+impl ResNet {
+    fn forward_t(&self, xs: &Tensor, train: bool) -> (Tensor, Tensor) {
+        let new_x = xs.apply_t(&self.init_block, train)
+            .apply_t(&self.res_layer, train);
+
+        let policy = new_x.apply_t(&self.policy_head, train);
+        let value = new_x.apply_t(&self.value_head, train);
+        (policy, value)
+    }
+}
+
+fn get_device() -> tch::Device {
+    if tch::utils::has_mps() {
+        tch::Device::Mps
+    } else {
+        tch::Device::cuda_if_available()
+    }
+}
