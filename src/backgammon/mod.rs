@@ -1,6 +1,9 @@
-use std::{collections::HashSet, fmt, vec};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::{collections::HashSet, fmt, vec};
+use tch::Tensor;
+
+use crate::alphazero::nnet::get_device;
 
 // (the board itself, pieces_hit, pieces_collected)
 pub type Board = ([i8; 24], (u8, u8), (u8, u8));
@@ -56,7 +59,7 @@ impl ActionNode {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Backgammon {
     pub board: Board,
-    pub roll: (u8, u8)
+    pub roll: (u8, u8),
 }
 
 impl Default for Backgammon {
@@ -82,7 +85,7 @@ impl Backgammon {
     pub fn init_with_board(board: Board) -> Self {
         Backgammon {
             board,
-            roll: (0, 0)
+            roll: (0, 0),
         }
     }
 
@@ -92,11 +95,37 @@ impl Backgammon {
         self.roll
     }
 
+    pub fn as_tensor(&self, player: i64) -> Tensor {
+        let board = self.board;
+        let device = get_device();
+        let full_options = (tch::Kind::Float, device);
+
+        let board_tensor = Tensor::from_slice(&board.0).view([4, 6, 1]).to_device(device);
+        let player_tensor = Tensor::full(24, player, full_options).view([4, 6, 1]);
+        let hit_tensor = Tensor::cat(
+            &[
+                Tensor::full(12, board.1.0 as i64, full_options),
+                Tensor::full(12, board.1.1 as i64, full_options),
+            ], 0
+        ).view([4, 6, 1]);
+        
+        let collect_tensor = Tensor::cat(
+            &[
+                Tensor::full(12, board.2.0 as i64, full_options),
+                Tensor::full(12, board.2.1 as i64, full_options),
+            ], 0
+        ).view([4, 6, 1]);
+
+        Tensor::stack(&[
+            board_tensor, player_tensor, hit_tensor, collect_tensor
+        ], 0)
+    }
+
     pub fn display_board(board: &Board) {
         let (points, pieces_hit, pieces_collected) = board;
         let mut total_player_1 = 0;
         let mut total_player_2 = 0;
-    
+
         // Display the main board
         for point in 13..=24 {
             if points[point as usize - 1] < 0 {
@@ -113,8 +142,7 @@ impl Backgammon {
         println!("\n");
         println!("------------------------------------------------");
         println!();
-        
-    
+
         for point in (1..=12).rev() {
             if points[point as usize - 1] < 0 {
                 total_player_1 -= points[point as usize - 1];
@@ -129,8 +157,10 @@ impl Backgammon {
         println!("\n");
 
         // Display hit pieces and collected pieces
-        println!("Hit: ({}, {})   Collected: ({}, {})",
-                 pieces_hit.0, pieces_hit.1, pieces_collected.0, pieces_collected.1);
+        println!(
+            "Hit: ({}, {})   Collected: ({}, {})",
+            pieces_hit.0, pieces_hit.1, pieces_collected.0, pieces_collected.1
+        );
 
         total_player_1 += pieces_hit.0 as i8;
         total_player_1 += pieces_collected.0 as i8;

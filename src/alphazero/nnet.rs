@@ -18,7 +18,7 @@ const FILTERS: i64 = 256;
 const N_RES_BLOCKS: usize = 19;
 
 #[derive(Debug)]
-struct ResBlock {
+pub struct ResBlock {
     conv1: nn::Conv2D,
     conv2: nn::Conv2D,
     bn1: nn::BatchNorm,
@@ -52,7 +52,7 @@ impl ResBlock {
 TODO: Implement ResNet
 */
 #[derive(Debug)]
-struct ResNet {
+pub struct ResNet {
     vs: nn::VarStore,
     init_block: nn::SequentialT,
     res_layer: nn::SequentialT,
@@ -60,7 +60,7 @@ struct ResNet {
     value_head: nn::SequentialT,
 }
 
-const INPUT_SIZE: i64 = 1300; // arbitrary
+const INPUT_SIZE: i64 = 4; // arbitrary
 const POLICY_OUTPUT_SIZE: i64 = 1300; // arbitrary
 
 impl Default for ResNet {
@@ -121,7 +121,7 @@ impl Default for ResNet {
 }
 
 impl ResNet {
-    fn forward_t(&self, xs: &Tensor, train: bool) -> (Tensor, Tensor) {
+    pub fn forward_t(&self, xs: &Tensor, train: bool) -> (Tensor, Tensor) {
         let new_x = xs.apply_t(&self.init_block, train)
             .apply_t(&self.res_layer, train);
 
@@ -131,7 +131,7 @@ impl ResNet {
     }
 }
 
-fn get_device() -> tch::Device {
+pub fn get_device() -> tch::Device {
     if tch::utils::has_mps() {
         tch::Device::Mps
     } else {

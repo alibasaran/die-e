@@ -153,13 +153,14 @@ d6aGH6_F9egx9OpBISBHR
 // }
 
 fn main() {
-    let moves: Actions = vec![(23, 22), (22, 16)];
-    let roll = (6, 1);
-    println!("Before encoding: {:?}", moves);
-    let encoded = encode(moves, roll, -1);
-    println!("Encoded: {}", encoded);
-    let decoded = decode(encoded, roll, -1);
-    println!("Decoded: {:?}", decoded);
+    let board = Backgammon::new();
+    let tensor_self = board.as_tensor(-1);
+    println!("Size: {:?}", tensor_self.size());
+
+    let net = alphazero::nnet::ResNet::default();
+    let new_tensor = net.forward_t(&tensor_self, false);
+    new_tensor.0.print();
+    new_tensor.1.print();
 }
 
 fn old_main() {
