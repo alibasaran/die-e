@@ -116,8 +116,15 @@ impl Backgammon {
             ], 0
         ).view([4, 6, 1]);
 
+        let roll_tensor = Tensor::cat(
+            &[
+                Tensor::full(12, self.roll.0 as i64, full_options),
+                Tensor::full(12, self.roll.1 as i64, full_options),
+            ], 0
+        ).view([4, 6, 1]);
+
         Tensor::stack(&[
-            board_tensor, player_tensor, hit_tensor, collect_tensor
+            board_tensor, player_tensor, hit_tensor, collect_tensor, roll_tensor
         ], 0)
     }
 
