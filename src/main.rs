@@ -9,6 +9,7 @@ pub mod alphazero;
 use mcts::{mct_search, random_play};
 use serde::{Deserialize, Serialize};
 use nanoid::nanoid;
+use tch::Tensor;
 // use serde::{Serialize, Deserialize};
 use std::fs::{File, self};
 use std::io::{Write, Read};
@@ -153,14 +154,20 @@ d6aGH6_F9egx9OpBISBHR
 // }
 
 fn main() {
-    let board = Backgammon::new();
+    let mut board = Backgammon::new();
+    board.roll_die();
     let tensor_self = board.as_tensor(-1);
     println!("Size: {:?}", tensor_self.size());
 
     let net = alphazero::nnet::ResNet::default();
     let new_tensor = net.forward_t(&tensor_self, false);
-    new_tensor.0.print();
-    new_tensor.1.print();
+    let decision = new_tensor.0.argmax(1, false);
+    println!("{}", decision);
+    println!("{}", decision.int64_value(&[0]));
+    let actions = decode(decision.int64_value(&[0]) as u32, board.roll, -1);
+    println!("{:?}", actions)
+    // new_tensor.0.print();
+    // new_tensor.1.print();
 }
 
 fn old_main() {

@@ -15,6 +15,7 @@ retrieved from: https://www.chessprogramming.org/AlphaZero#Network_Architecture
 */
 
 const FILTERS: i64 = 256;
+const CONV_OUTPUT_SIZE: i64 = 24; // board height * board width
 const N_RES_BLOCKS: usize = 19;
 
 #[derive(Debug)]
@@ -92,7 +93,7 @@ impl Default for ResNet {
             .add_fn(|x| x.flatten(1, -1))
             .add(nn::linear(
                 &root,
-                2 * 1000, /* conv output size */
+                2 * CONV_OUTPUT_SIZE, /* conv output size */
                 POLICY_OUTPUT_SIZE,
                 Default::default(),
             ));
@@ -104,7 +105,7 @@ impl Default for ResNet {
             .add_fn(|x| x.flatten(1, -1))
             .add(nn::linear(
                 root,
-                1 * 1000, /* conv output size */
+                CONV_OUTPUT_SIZE, /* conv output size */
                 1,
                 Default::default(),
             ))

@@ -127,7 +127,7 @@ impl Backgammon {
 
         Tensor::stack(&[
             board_tensor, player_tensor, hit_tensor, collect_tensor, roll_tensor
-        ], 0)
+        ], 2).permute([3, 2, 0, 1])
     }
 
     pub fn display_board(board: &Board) {
