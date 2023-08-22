@@ -96,6 +96,8 @@ impl Backgammon {
     }
 
     pub fn as_tensor(&self, player: i64) -> Tensor {
+        assert!(self.roll != (0, 0), "die has not been rolled!");
+
         let board = self.board;
         let device = get_device();
         let full_options = (tch::Kind::Float, device);
@@ -266,6 +268,8 @@ impl Backgammon {
     }
 
     pub fn get_valid_moves(&self, player: i8) -> Vec<Actions> {
+        assert!(self.roll != (0, 0), "die has not been rolled!");
+
         let all_moves: Vec<u8> = match self.roll {
             (r0, r1) if r0 == r1 => vec![r0; 4],
             (r0, r1) if r0 > r1 => vec![r0, r1],
