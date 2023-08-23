@@ -21,6 +21,7 @@ use rand::seq::SliceRandom;
 use rayon::prelude::*;
 
 use crate::alphazero::encoding::decode;
+use crate::mcts::alpha_mcts;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 enum Agent {
     Random, Mcts, None
@@ -156,18 +157,11 @@ d6aGH6_F9egx9OpBISBHR
 fn main() {
     let mut board = Backgammon::new();
     board.roll_die();
-    let tensor_self = board.as_tensor(-1);
-    println!("Size: {:?}", tensor_self.size());
+    println!("Roll: {:?}", board.roll);
 
     let net = alphazero::nnet::ResNet::default();
-    let new_tensor = net.forward_t(&tensor_self, false);
-    let decision = new_tensor.0.argmax(1, false);
-    println!("{}", decision);
-    println!("{}", decision.int64_value(&[0]));
-    let actions = decode(decision.int64_value(&[0]) as u32, board.roll, -1);
-    println!("{:?}", actions)
-    // new_tensor.0.print();
-    // new_tensor.1.print();
+    let action = alpha_mcts(board, -1, &net);
+    println!("{:?}", action);
 }
 
 fn old_main() {
