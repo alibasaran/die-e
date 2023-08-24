@@ -1,12 +1,12 @@
-use std::{cmp::Ordering, ops::Div};
-use crate::alphazero::encoding::encode;
-use crate::alphazero::nnet::ResNet;
-use crate::backgammon::{Actions, Backgammon, Board};
+use crate::alphazero::encoding::{encode, decode};
+use crate::alphazero::nnet::{ResNet, get_device};
 use crate::alphazero::{self};
+use crate::backgammon::{Actions, Backgammon, Board};
 use indicatif::ProgressIterator;
 use rand::{seq::SliceRandom, Rng};
-use tch::Tensor;
+use std::{cmp::Ordering, ops::Div};
 use tch::index::*;
+use tch::Tensor;
 
 #[derive(Clone, Debug)]
 pub struct Node {
@@ -37,7 +37,7 @@ impl NodeStore {
         parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
-        roll: Option<(u8, u8)>
+        roll: Option<(u8, u8)>,
     ) -> usize {
         let idx = self.nodes.len();
         let new_node = if let Some(roll) = roll {
@@ -91,7 +91,7 @@ impl Node {
         parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
-        roll: (u8, u8)
+        roll: (u8, u8),
     ) -> Self {
         state.roll = roll;
         let moves = state.get_valid_moves(player);
@@ -142,7 +142,11 @@ impl Node {
     }
 
     fn get_policy(&self, policy_head: Tensor) -> f32 {
-        let encoded_value = encode(self.action_taken.clone().unwrap(), self.state.roll, self.player);
+        let encoded_value = encode(
+            self.action_taken.clone().unwrap(),
+            self.state.roll,
+            self.player,
+        );
         let tensor = policy_head.permute([1, 0]);
         let value = tensor.double_value(&[encoded_value as i64]);
         value as f32
@@ -159,8 +163,7 @@ impl Node {
         let move_idx = rand::thread_rng().gen_range(0..self.expandable_moves.len());
 
         let action_taken = self.expandable_moves.remove(move_idx);
-        let next_state =
-            Backgammon::get_next_state(self.state.board, &action_taken, self.player);
+        let next_state = Backgammon::get_next_state(self.state.board, &action_taken, self.player);
         let child_backgammon = Backgammon::init_with_board(next_state);
 
         let child_idx = store.add_node(
@@ -168,7 +171,7 @@ impl Node {
             Some(self.idx),
             Some(action_taken),
             -self.player,
-            None
+            None,
         );
         self.children.push(child_idx);
         store.set_node(self);
@@ -184,7 +187,7 @@ impl Node {
             if let Some(winner) = Backgammon::check_win_without_player(curr_state.board) {
                 return (((winner / player) + 1) / 2) as f32;
             }
-            
+
             curr_state.roll_die();
             let valid_moves = curr_state.get_valid_moves(curr_player);
 
@@ -215,7 +218,8 @@ fn select_ucb(node_idx: usize, store: &NodeStore) -> Node {
 
 fn select_win_pct(node_idx: usize, store: &NodeStore) -> Actions {
     let node = store.get_node(node_idx);
-    let best_child = node.children
+    let best_child = node
+        .children
         .iter()
         .map(|child_idx| store.get_node(*child_idx))
         .max_by(|a, b| {
@@ -225,7 +229,7 @@ fn select_win_pct(node_idx: usize, store: &NodeStore) -> Actions {
         });
     match best_child {
         Some(child) => child.action_taken.unwrap_or(vec![]),
-        None => vec![]
+        None => vec![],
     }
 }
 
@@ -282,9 +286,9 @@ const CONFIG: MctsConfig = MctsConfig {
 pub fn mct_search(state: Backgammon, player: i8) -> Actions {
     // Check if game already is terminal at root
     if Backgammon::check_win_without_player(state.board).is_some() {
-        return vec![]
+        return vec![];
     }
-    
+
     let mut store = NodeStore::new();
     let roll = state.roll;
     let root_node_idx = store.add_node(state, None, None, player, Some(roll));
@@ -309,12 +313,51 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
     select_win_pct(root_node_idx, &store)
 }
 
+const ACTION_SPACE_SIZE: i64 = 1352;
+
+pub fn alpha_mcts_probs(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor> {
+    // Check if game already is terminal at root
+    if Backgammon::check_win_without_player(state.board).is_some() {
+        return None;
+    }
+
+    let mut store = NodeStore::new();
+    let roll = state.roll;
+    let root_node_idx = store.add_node(state.clone(), None, None, player, Some(roll));
+    let pb_iter = (0..CONFIG.iterations).progress().with_message("AlphaMCTS");
+    for _ in pb_iter {
+        // Don't forget to save the node later into the store
+        let idx = alpha_select_leaf_node(root_node_idx, &store, net);
+        let mut selected_node = store.get_node(idx);
+
+        while !selected_node.is_fully_expanded() {
+            let new_node_idx = selected_node.expand(&mut store);
+            let mut new_node = store.get_node(new_node_idx);
+            let result = new_node.simulate(player);
+            backpropagate(new_node_idx, result, &mut store)
+        }
+    }
+    let result = Tensor::full(ACTION_SPACE_SIZE, 0, (tch::Kind::Float, get_device()));
+    let mut idxs: Vec<Option<Tensor>> = vec![];
+    let mut visits: Vec<f32> = vec![];
+    for child in store.get_node(root_node_idx).children {
+        let child_node = store.get_node(child);
+        let encoded_action = encode(child_node.action_taken.unwrap(), state.roll, player) as i64;
+        idxs.push(Some(Tensor::from_slice(&[encoded_action])));
+        visits.push(child_node.visits)
+    }
+    let visits_tensor = Tensor::from_slice(&visits);
+    let probs = result.index_put(&idxs, &visits_tensor, false);
+    let prob_sum = probs.sum(Some(tch::Kind::Float));
+    Some(probs.div(prob_sum))
+}
+
 pub fn alpha_mcts(state: Backgammon, player: i8, net: &ResNet) -> Actions {
     // Check if game already is terminal at root
     if Backgammon::check_win_without_player(state.board).is_some() {
-        return vec![]
+        return vec![];
     }
-    
+
     let mut store = NodeStore::new();
     let roll = state.roll;
     let root_node_idx = store.add_node(state, None, None, player, Some(roll));
