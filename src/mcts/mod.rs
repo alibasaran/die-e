@@ -313,7 +313,7 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
     select_win_pct(root_node_idx, &store)
 }
 
-const ACTION_SPACE_SIZE: i64 = 1352;
+pub const ACTION_SPACE_SIZE: i64 = 1352;
 
 pub fn alpha_mcts_probs(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor> {
     // Check if game already is terminal at root
