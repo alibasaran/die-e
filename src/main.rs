@@ -160,7 +160,7 @@ fn main() {
     println!("Roll: {:?}", board.roll);
 
     let net = alphazero::nnet::ResNet::default();
-    let action = alpha_mcts(board, -1, &net);
+    let action = alpha_mcts(&board, -1, &net);
     println!("{:?}", action);
 }
 

@@ -6,7 +6,7 @@ use super::{encoding::decode, nnet::ResNet};
 
 use crate::{
     backgammon::Backgammon,
-    mcts::{alpha_mcts, alpha_mcts_probs, ACTION_SPACE_SIZE},
+    mcts::{alpha_mcts, ACTION_SPACE_SIZE},
 };
 
 struct AlphaZeroConfig {
@@ -44,7 +44,7 @@ impl AlphaZero {
         loop {
             bg.roll_die();
             // Get probabilities from mcts
-            let pi = match alpha_mcts_probs(&bg, player, &self.model) {
+            let pi = match alpha_mcts(&bg, player, &self.model) {
                 Some(pi) => pi,
                 None => continue,
             };

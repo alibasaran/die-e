@@ -95,6 +95,11 @@ impl Backgammon {
         self.roll
     }
 
+    pub fn apply_move(&mut self, actions: &Actions, player: i8) {
+        let next_state = Self::get_next_state(self.board, actions, player);
+        self.board = next_state;
+    }
+
     pub fn as_tensor(&self, player: i64) -> Tensor {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
@@ -272,6 +277,19 @@ impl Backgammon {
 
         let all_moves: Vec<u8> = match self.roll {
             (r0, r1) if r0 == r1 => vec![r0; 4],
+            (r0, r1) if r0 > r1 => vec![r0, r1],
+            (r0, r1) => vec![r1, r0],
+        };
+        let action_trees = Self::_get_action_trees(&all_moves, self.board, player);
+        // parse trees into actions here
+        let actions = Self::extract_sequences_list(action_trees);
+        Self::remove_duplicate_states(self.board, actions, player)
+    }
+
+    pub fn get_valid_moves_len_always_2(&self, player: i8) -> Vec<Actions> {
+        assert!(self.roll != (0, 0), "die has not been rolled!");
+
+        let all_moves: Vec<u8> = match self.roll {
             (r0, r1) if r0 > r1 => vec![r0, r1],
             (r0, r1) => vec![r1, r0],
         };

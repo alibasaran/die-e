@@ -4,8 +4,9 @@ use crate::alphazero::{self};
 use crate::backgammon::{Actions, Backgammon, Board};
 use indicatif::ProgressIterator;
 use rand::{seq::SliceRandom, Rng};
+use rayon::vec;
 use std::{cmp::Ordering, ops::Div};
-use tch::index::*;
+use tch::{index::*, Kind};
 use tch::Tensor;
 
 #[derive(Clone, Debug)]
@@ -16,6 +17,8 @@ pub struct Node {
     children: Vec<usize>,
     visits: f32,
     value: f32,
+    policy: f32,
+    is_double_move: bool,
     action_taken: Option<Actions>,
     expandable_moves: Vec<Actions>,
     player: i8,
@@ -38,12 +41,14 @@ impl NodeStore {
         action_taken: Option<Actions>,
         player: i8,
         roll: Option<(u8, u8)>,
+        is_double_move: bool,
+        policy: f32,
     ) -> usize {
         let idx = self.nodes.len();
         let new_node = if let Some(roll) = roll {
-            Node::new_with_roll(state, idx, parent, action_taken, player, roll)
+            Node::new_with_roll(state, idx, parent, action_taken, player, roll, is_double_move, policy)
         } else {
-            Node::new(state, idx, parent, action_taken, player)
+            Node::new(state, idx, parent, action_taken, player, is_double_move, policy)
         };
         self.nodes.push(new_node);
         idx
@@ -69,9 +74,11 @@ impl Node {
         parent: Option<usize>,
         action_taken: Option<Actions>,
         player: i8,
+        is_double_move: bool,
+        policy: f32,
     ) -> Self {
         state.roll_die();
-        let moves = state.get_valid_moves(player);
+        let moves = state.get_valid_moves_len_always_2(player);
         Node {
             state,
             parent,
@@ -82,6 +89,8 @@ impl Node {
             player,
             visits: 0.0,
             value: 0.0,
+            policy,
+            is_double_move,
         }
     }
 
@@ -92,9 +101,11 @@ impl Node {
         action_taken: Option<Actions>,
         player: i8,
         roll: (u8, u8),
+        is_double_move: bool,
+        policy: f32,
     ) -> Self {
         state.roll = roll;
-        let moves = state.get_valid_moves(player);
+        let moves = state.get_valid_moves_len_always_2(player);
         Node {
             state,
             parent,
@@ -105,6 +116,8 @@ impl Node {
             player,
             visits: 0.0,
             value: 0.0,
+            is_double_move,
+            policy,
         }
     }
 
@@ -127,29 +140,19 @@ impl Node {
         }
     }
 
-    fn alpha_ucb(&self, store: &NodeStore, net: &ResNet) -> f32 {
-        let tensor_self = self.state.as_tensor(self.player as i64);
-        let new_tensor = net.forward_t(&tensor_self, false);
-        let policy_value = self.get_policy(new_tensor.0);
+    fn alpha_ucb(&self, store: &NodeStore) -> f32 {
+        let q_value = if self.visits == 0.0 {
+            0.0
+        } else {
+            self.value.div(self.visits)
+        };
         match self.parent {
             Some(parent_idx) => {
                 let parent = store.get_node(parent_idx);
-                let q_value = self.value.div(self.visits);
-                q_value + (CONFIG.c * policy_value * parent.visits.ln().div(self.visits).sqrt())
+                q_value + (CONFIG.c * parent.visits.sqrt().div(self.visits + 1.0)) * self.policy
             }
             None => f32::INFINITY,
         }
-    }
-
-    fn get_policy(&self, policy_head: Tensor) -> f32 {
-        let encoded_value = encode(
-            self.action_taken.clone().unwrap(),
-            self.state.roll,
-            self.player,
-        );
-        let tensor = policy_head.permute([1, 0]);
-        let value = tensor.double_value(&[encoded_value as i64]);
-        value as f32
     }
 
     fn win_pct(&self) -> f32 {
@@ -166,16 +169,88 @@ impl Node {
         let next_state = Backgammon::get_next_state(self.state.board, &action_taken, self.player);
         let child_backgammon = Backgammon::init_with_board(next_state);
 
-        let child_idx = store.add_node(
-            child_backgammon,
-            Some(self.idx),
-            Some(action_taken),
-            -self.player,
-            None,
-        );
+        let child_idx = if self.state.roll.0 != self.state.roll.1 {
+            store.add_node(
+                child_backgammon,
+                Some(self.idx),
+                Some(action_taken),
+                -self.player,
+                None,
+                false,
+                0.0
+            )
+        } else if !self.is_double_move {
+            store.add_node(
+                child_backgammon,
+                Some(self.idx),
+                Some(action_taken),
+                self.player,
+                Some(self.state.roll),
+                true,
+                0.0
+            )
+        } else {
+            store.add_node(
+                child_backgammon,
+                Some(self.idx),
+                Some(action_taken),
+                -self.player,
+                None,
+                false,
+                0.0
+            )
+        };
+        
         self.children.push(child_idx);
         store.set_node(self);
         child_idx
+    }
+
+    fn alpha_expand(&mut self, store: &mut NodeStore, policy: Vec<f32>) {
+        for action in self.expandable_moves.iter() {
+            let next_state = Backgammon::get_next_state(self.state.board, action, self.player);
+            let child_backgammon = Backgammon::init_with_board(next_state);
+            let encoded_value = encode(
+                action.clone(),
+                self.state.roll,
+                self.player,
+            );
+            let value = policy[encoded_value as usize];
+
+            let child_idx = if self.state.roll.0 != self.state.roll.1 {
+                store.add_node(
+                    child_backgammon,
+                    Some(self.idx),
+                    Some(action.to_vec()),
+                    -self.player,
+                    None,
+                    false,
+                    value
+                )
+            } else if !self.is_double_move {
+                store.add_node(
+                    child_backgammon,
+                    Some(self.idx),
+                    Some(action.to_vec()),
+                    self.player,
+                    Some(self.state.roll),
+                    true,
+                    value
+                )
+            } else {
+                store.add_node(
+                    child_backgammon,
+                    Some(self.idx),
+                    Some(action.to_vec()),
+                    -self.player,
+                    None,
+                    false,
+                    value
+                )
+            };
+            self.children.push(child_idx);
+        }
+        store.set_node(self);
     }
 
     pub fn simulate(&mut self, player: i8) -> f32 {
@@ -241,25 +316,25 @@ fn select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
     select_leaf_node(select_ucb(node_idx, store).idx, store)
 }
 
-fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore, net: &ResNet) -> usize {
+fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
     let node = store.get_node(node_idx);
     if node.children.is_empty() {
         return node.idx;
     }
-    alpha_select_leaf_node(select_alpha(node_idx, store, net).idx, store, net)
+    alpha_select_leaf_node(select_alpha(node_idx, store).idx, store)
 }
 
-fn select_alpha(node_idx: usize, store: &NodeStore, net: &ResNet) -> Node {
+fn select_alpha(node_idx: usize, store: &NodeStore) -> Node {
     let node = store.get_node(node_idx);
     node.children
         .iter()
         .map(|child_idx| store.get_node(*child_idx))
         .max_by(|a, b| {
-            a.alpha_ucb(store, net)
-                .partial_cmp(&b.ucb(store))
+            a.alpha_ucb(store)
+                .partial_cmp(&b.alpha_ucb(store))
                 .unwrap_or(Ordering::Equal)
         })
-        .expect("select_ucb called on node without children!")
+        .expect("select_alpha called on node without children!")
 }
 
 fn backpropagate(node_idx: usize, result: f32, store: &mut NodeStore) {
@@ -279,7 +354,8 @@ struct MctsConfig {
 
 const CONFIG: MctsConfig = MctsConfig {
     iterations: 800,
-    c: std::f32::consts::SQRT_2,
+    c: 1.0,
+    // c: std::f32::consts::SQRT_2,
     simulate_round_limit: 100,
 };
 
@@ -291,7 +367,7 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
 
     let mut store = NodeStore::new();
     let roll = state.roll;
-    let root_node_idx = store.add_node(state, None, None, player, Some(roll));
+    let root_node_idx = store.add_node(state, None, None, player, Some(roll), false, 0.0);
     let pb_iter = (0..CONFIG.iterations).progress().with_message("MCTS");
     for _ in pb_iter {
         // Don't forget to save the node later into the store
@@ -315,7 +391,7 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
 
 pub const ACTION_SPACE_SIZE: i64 = 1352;
 
-pub fn alpha_mcts_probs(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor> {
+pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor> {
     // Check if game already is terminal at root
     if Backgammon::check_win_without_player(state.board).is_some() {
         return None;
@@ -323,19 +399,29 @@ pub fn alpha_mcts_probs(state: &Backgammon, player: i8, net: &ResNet) -> Option<
 
     let mut store = NodeStore::new();
     let roll = state.roll;
-    let root_node_idx = store.add_node(state.clone(), None, None, player, Some(roll));
+    let root_node_idx = store.add_node(state.clone(), None, None, player, Some(roll), false, 0.0);
     let pb_iter = (0..CONFIG.iterations).progress().with_message("AlphaMCTS");
+
     for _ in pb_iter {
         // Don't forget to save the node later into the store
-        let idx = alpha_select_leaf_node(root_node_idx, &store, net);
+        let idx = alpha_select_leaf_node(root_node_idx, &store);
         let mut selected_node = store.get_node(idx);
 
-        while !selected_node.is_fully_expanded() {
-            let new_node_idx = selected_node.expand(&mut store);
-            let mut new_node = store.get_node(new_node_idx);
-            let result = new_node.simulate(player);
-            backpropagate(new_node_idx, result, &mut store)
+        let value: f32;
+
+        if !selected_node.is_terminal() {
+            let (mut policy, eval) = net.forward_t(&state.as_tensor(player as i64), false);
+
+            policy = policy.softmax(1, Kind::Float)
+                .permute([1, 0]);
+            let policy_vec = turn_policy_to_probs(&policy, &selected_node);
+            value = eval.double_value(&[0]) as f32;
+            selected_node.alpha_expand(&mut store, policy_vec);
+        } else {
+            value = ((Backgammon::check_win_without_player(selected_node.state.board).unwrap() + 1) / 2) as f32;
         }
+
+        backpropagate(idx, value, &mut store);
     }
     let result = Tensor::full(ACTION_SPACE_SIZE, 0, (tch::Kind::Float, get_device()));
     let mut idxs: Vec<Option<Tensor>> = vec![];
@@ -352,29 +438,27 @@ pub fn alpha_mcts_probs(state: &Backgammon, player: i8, net: &ResNet) -> Option<
     Some(probs.div(prob_sum))
 }
 
-pub fn alpha_mcts(state: Backgammon, player: i8, net: &ResNet) -> Actions {
-    // Check if game already is terminal at root
-    if Backgammon::check_win_without_player(state.board).is_some() {
-        return vec![];
+fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {
+    let mut values: Vec<f32> = vec![0.0; 1352];
+    let mut encoded_values: Vec<usize> = Vec::with_capacity(node.expandable_moves.len());
+    for action in &node.expandable_moves {
+        let encoded_value = encode(
+            action.clone(),
+            node.state.roll,
+            node.player,
+        );
+        encoded_values.push(encoded_value as usize);
+        values[encoded_value as usize] = policy.double_value(&[encoded_value as i64]) as f32;
+    }
+    let sum: f32 = values.iter().sum();
+
+    for i in 0..encoded_values.len() {
+        let encoded_value = *encoded_values.get(i).unwrap();
+        let prob = values[encoded_value] / sum;
+        values[encoded_value] = prob;
     }
 
-    let mut store = NodeStore::new();
-    let roll = state.roll;
-    let root_node_idx = store.add_node(state, None, None, player, Some(roll));
-    let pb_iter = (0..CONFIG.iterations).progress().with_message("AlphaMCTS");
-    for _ in pb_iter {
-        // Don't forget to save the node later into the store
-        let idx = alpha_select_leaf_node(root_node_idx, &store, net);
-        let mut selected_node = store.get_node(idx);
-
-        while !selected_node.is_fully_expanded() {
-            let new_node_idx = selected_node.expand(&mut store);
-            let mut new_node = store.get_node(new_node_idx);
-            let result = new_node.simulate(player);
-            backpropagate(new_node_idx, result, &mut store)
-        }
-    }
-    select_win_pct(root_node_idx, &store)
+    values
 }
 
 pub fn random_play(bg: &Backgammon, player: i8) -> Actions {
