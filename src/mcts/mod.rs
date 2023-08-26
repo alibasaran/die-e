@@ -1,12 +1,10 @@
-use crate::alphazero::encoding::{encode, decode};
+use crate::alphazero::encoding::encode;
 use crate::alphazero::nnet::{ResNet, get_device};
-use crate::alphazero::{self};
-use crate::backgammon::{Actions, Backgammon, Board};
+use crate::backgammon::{Actions, Backgammon};
 use indicatif::ProgressIterator;
 use rand::{seq::SliceRandom, Rng};
-use rayon::vec;
 use std::{cmp::Ordering, ops::Div};
-use tch::{index::*, Kind};
+use tch::Kind;
 use tch::Tensor;
 
 #[derive(Clone, Debug)]
@@ -169,7 +167,7 @@ impl Node {
         let next_state = Backgammon::get_next_state(self.state.board, &action_taken, self.player);
         let child_backgammon = Backgammon::init_with_board(next_state);
 
-        let child_idx = if self.state.roll.0 != self.state.roll.1 {
+        let child_idx = if self.state.roll.0 != self.state.roll.1 || self.is_double_move {
             store.add_node(
                 child_backgammon,
                 Some(self.idx),
@@ -177,16 +175,6 @@ impl Node {
                 -self.player,
                 None,
                 false,
-                0.0
-            )
-        } else if !self.is_double_move {
-            store.add_node(
-                child_backgammon,
-                Some(self.idx),
-                Some(action_taken),
-                self.player,
-                Some(self.state.roll),
-                true,
                 0.0
             )
         } else {
@@ -194,9 +182,9 @@ impl Node {
                 child_backgammon,
                 Some(self.idx),
                 Some(action_taken),
-                -self.player,
-                None,
-                false,
+                self.player,
+                Some(self.state.roll),
+                true,
                 0.0
             )
         };
@@ -217,7 +205,7 @@ impl Node {
             );
             let value = policy[encoded_value as usize];
 
-            let child_idx = if self.state.roll.0 != self.state.roll.1 {
+            let child_idx = if self.state.roll.0 != self.state.roll.1 || self.is_double_move {
                 store.add_node(
                     child_backgammon,
                     Some(self.idx),
@@ -225,16 +213,6 @@ impl Node {
                     -self.player,
                     None,
                     false,
-                    value
-                )
-            } else if !self.is_double_move {
-                store.add_node(
-                    child_backgammon,
-                    Some(self.idx),
-                    Some(action.to_vec()),
-                    self.player,
-                    Some(self.state.roll),
-                    true,
                     value
                 )
             } else {
@@ -242,9 +220,9 @@ impl Node {
                     child_backgammon,
                     Some(self.idx),
                     Some(action.to_vec()),
-                    -self.player,
-                    None,
-                    false,
+                    self.player,
+                    Some(self.state.roll),
+                    true,
                     value
                 )
             };
@@ -424,16 +402,17 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor
         backpropagate(idx, value, &mut store);
     }
     let result = Tensor::full(ACTION_SPACE_SIZE, 0, (tch::Kind::Float, get_device()));
-    let mut idxs: Vec<Option<Tensor>> = vec![];
+    let mut idxs: Vec<i64> = vec![];
     let mut visits: Vec<f32> = vec![];
     for child in store.get_node(root_node_idx).children {
         let child_node = store.get_node(child);
         let encoded_action = encode(child_node.action_taken.unwrap(), state.roll, player) as i64;
-        idxs.push(Some(Tensor::from_slice(&[encoded_action])));
+        idxs.push(encoded_action);
         visits.push(child_node.visits)
     }
-    let visits_tensor = Tensor::from_slice(&visits);
-    let probs = result.index_put(&idxs, &visits_tensor, false);
+    let visits_tensor = Tensor::from_slice(&visits).to_device(get_device());
+    let indices_tensor = Tensor::from_slice(&idxs).to_device(get_device());
+    let probs = result.index_put(&[Some(indices_tensor)], &visits_tensor, false);
     let prob_sum = probs.sum(Some(tch::Kind::Float));
     Some(probs.div(prob_sum))
 }

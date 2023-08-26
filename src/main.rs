@@ -9,7 +9,7 @@ pub mod alphazero;
 use mcts::{mct_search, random_play};
 use serde::{Deserialize, Serialize};
 use nanoid::nanoid;
-use tch::Tensor;
+use tch::{Tensor, Kind};
 // use serde::{Serialize, Deserialize};
 use std::fs::{File, self};
 use std::io::{Write, Read};
@@ -161,7 +161,7 @@ fn main() {
 
     let net = alphazero::nnet::ResNet::default();
     let action = alpha_mcts(&board, -1, &net);
-    println!("{:?}", action);
+    action.unwrap().sum(Kind::Float).print();
 }
 
 fn old_main() {
