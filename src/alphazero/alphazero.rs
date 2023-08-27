@@ -9,25 +9,25 @@ use crate::{
     mcts::{alpha_mcts, ACTION_SPACE_SIZE},
 };
 
-struct AlphaZeroConfig {
-    learn_iterations: usize,
-    self_play_iterations: usize,
+pub struct AlphaZeroConfig {
+    pub learn_iterations: usize,
+    pub self_play_iterations: usize,
 }
 
-struct AlphaZero {
+pub struct AlphaZero {
     model: ResNet,
     optimizer: Adam,
     config: AlphaZeroConfig,
 }
-
-struct MemoryFragment {
+#[derive(Debug)]
+pub struct MemoryFragment {
     outcome: i8,   // Outcome of game
     ps: Tensor,    // Probabilities
     state: Tensor, // Encoded game state
 }
 
 impl AlphaZero {
-    fn new(config: AlphaZeroConfig) -> Self {
+    pub fn new(config: AlphaZeroConfig) -> Self {
         AlphaZero {
             model: ResNet::default(),
             optimizer: Adam::default(),
@@ -35,18 +35,33 @@ impl AlphaZero {
         }
     }
 
-    fn self_play(&self) -> Vec<MemoryFragment> {
+    pub fn self_play(&self) -> Vec<MemoryFragment> {
+        println!("Started self play");
         let mut bg = Backgammon::new();
+        bg.roll_die();
 
         let mut player = -1;
         let mut memory: Vec<MemoryFragment> = vec![];
-        let mut current_state = bg.board;
+        // Is second play is a workaround for the case where doubles are rolled
+        // Ex. when a player rolls 6,6 they can play 6 4-times
+        // rather than the usual two that would be played on a normal role
+        // So we feed doubles into the network as two back to back normal roles from the same player
+        let mut is_second_play = false;
+
         loop {
-            bg.roll_die();
+            println!("Rolled die: {:?}", bg.roll);
+            println!("Player: {}", player);
+            bg.display_board();
             // Get probabilities from mcts
-            let pi = match alpha_mcts(&bg, player, &self.model) {
+            let pi = match alpha_mcts(&bg, player, &self.model, is_second_play) {
                 Some(pi) => pi,
-                None => continue,
+                None => {
+                    println!("No valid moves!");
+                    is_second_play = false;
+                    player *= -1;
+                    bg.roll_die();
+                    continue;
+                }
             };
 
             // Select an action from probabilities
@@ -56,29 +71,32 @@ impl AlphaZero {
             memory.push(MemoryFragment {
                 outcome: player,
                 ps: pi,
-                state: bg.as_tensor(player as i64),
+                state: bg.as_tensor(player as i64, is_second_play),
             });
 
             // Decode and play selected action
             let decoded_action = decode(selected_action as u32, bg.roll, player);
-            current_state = Backgammon::get_next_state(current_state, &decoded_action, player);
-            bg.board = current_state;
+            println!("Played action: {:?}\n\n", decoded_action);
+            bg.apply_move(&decoded_action, player);
 
-            if let Some(winner) = Backgammon::check_win_without_player(current_state) {
+            if let Some(winner) = Backgammon::check_win_without_player(bg.board) {
                 return memory
                     .iter()
                     .map(|mem| MemoryFragment {
-                        outcome: if mem.outcome == winner {
-                            winner
-                        } else {
-                            -winner
-                        },
+                        outcome: if mem.outcome == winner { 1 } else { -1 },
                         ps: mem.ps.shallow_clone(),
                         state: mem.state.shallow_clone(),
                     })
                     .collect();
             }
-            player *= -1;
+            // If double roll
+            if bg.roll.1 == bg.roll.0 && !is_second_play {
+                is_second_play = true;
+            } else {
+                is_second_play = false;
+                player *= -1;
+                bg.roll_die();
+            }
         }
     }
 

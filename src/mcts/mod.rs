@@ -331,7 +331,7 @@ struct MctsConfig {
 }
 
 const CONFIG: MctsConfig = MctsConfig {
-    iterations: 800,
+    iterations: 100,
     c: 1.0,
     // c: std::f32::consts::SQRT_2,
     simulate_round_limit: 100,
@@ -369,15 +369,14 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
 
 pub const ACTION_SPACE_SIZE: i64 = 1352;
 
-pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor> {
+pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: bool) -> Option<Tensor> {
     // Check if game already is terminal at root
     if Backgammon::check_win_without_player(state.board).is_some() {
         return None;
     }
-
     let mut store = NodeStore::new();
     let roll = state.roll;
-    let root_node_idx = store.add_node(state.clone(), None, None, player, Some(roll), false, 0.0);
+    let root_node_idx = store.add_node(state.clone(), None, None, player, Some(roll), root_is_double, 0.0);
     let pb_iter = (0..CONFIG.iterations).progress().with_message("AlphaMCTS");
 
     for _ in pb_iter {
@@ -388,7 +387,7 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor
         let value: f32;
 
         if !selected_node.is_terminal() {
-            let (mut policy, eval) = net.forward_t(&state.as_tensor(player as i64), false);
+            let (mut policy, eval) = net.forward_t(&state.as_tensor(player as i64, selected_node.is_double_move), false);
 
             policy = policy.softmax(1, Kind::Float)
                 .permute([1, 0]);
@@ -401,10 +400,18 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor
 
         backpropagate(idx, value, &mut store);
     }
+    get_prob_tensor(state, root_node_idx, &store, player)
+}
+
+fn get_prob_tensor(state: &Backgammon, root_node_idx: usize, store: &NodeStore, player: i8) -> Option<Tensor> {
     let result = Tensor::full(ACTION_SPACE_SIZE, 0, (tch::Kind::Float, get_device()));
     let mut idxs: Vec<i64> = vec![];
     let mut visits: Vec<f32> = vec![];
-    for child in store.get_node(root_node_idx).children {
+    let children = store.get_node(root_node_idx).children;
+    if children.is_empty() {
+        return None;
+    }
+    for child in children {
         let child_node = store.get_node(child);
         let encoded_action = encode(child_node.action_taken.unwrap(), state.roll, player) as i64;
         idxs.push(encoded_action);

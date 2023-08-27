@@ -20,6 +20,7 @@ use rand::thread_rng;
 use rand::seq::SliceRandom;
 use rayon::prelude::*;
 
+use crate::alphazero::alphazero::{AlphaZero, AlphaZeroConfig};
 use crate::alphazero::encoding::decode;
 use crate::mcts::alpha_mcts;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -111,14 +112,14 @@ fn print_all_game_winners() {
 
 fn print_out_game(directory: &str, filename: &str) {
     let game = load_game(directory, filename).unwrap();
-    let mut curr_state = game.initial_state.board;
+    let mut curr_state = game.initial_state;
     println!("Player1: {:?} Player 2: {:?}", game.player1, game.player2);
     println!("Turns played: {}", &game.turns.len());
     for (idx, turn) in game.turns.iter().enumerate() {
         let player = if idx % 2 == 0 {-1} else {1};
         println!("[{}] {:?}", idx, turn);
-        curr_state = Backgammon::get_next_state(curr_state, &turn.action, player);
-        Backgammon::display_board(&curr_state);
+        curr_state.apply_move(&turn.action, player);
+        curr_state.display_board();
     }
     println!("Winner: {:?}", game.winner)
 }
@@ -155,42 +156,13 @@ d6aGH6_F9egx9OpBISBHR
 // }
 
 fn main() {
-    let mut board = Backgammon::new();
-    board.roll_die();
-    println!("Roll: {:?}", board.roll);
-
-    let net = alphazero::nnet::ResNet::default();
-    let action = alpha_mcts(&board, -1, &net);
-    action.unwrap().sum(Kind::Float).print();
-}
-
-fn old_main() {
-    let mut bg = Backgammon::new();
-
-    while Backgammon::check_win_without_player(bg.board).is_none() {
-        let player_1_action = mct_search(bg.clone(), -1);
-
-        let new_state = Backgammon::get_next_state(bg.board, 
-            &player_1_action, -1);
-
-        println!("Player 1, action: {:?}", player_1_action);
-        Backgammon::display_board(&new_state);
-
-        bg.board = new_state;
-
-        let player_2_action = random_play(&mut bg, 1);
-
-        let new_state = Backgammon::get_next_state(bg.board, 
-            &player_2_action, 1);
-
-        println!("Player 2, action: {:?}", player_2_action);
-        Backgammon::display_board(&new_state);
-
-        bg.board = new_state;
-    }
-
-    let winner = Backgammon::check_win_without_player(bg.board).unwrap();
-    println!("Winner is player {}", winner)
+    let config = AlphaZeroConfig {
+        learn_iterations: 1000,
+        self_play_iterations: 1000,
+    };
+    let az = AlphaZero::new(config);
+    let memory = az.self_play();
+    println!("{:?}", memory)
 }
 
 fn play_games_and_save(iterations: usize) {
@@ -233,7 +205,7 @@ fn play_mcts_vs_random() -> Game {
             Agent::None => unreachable!()
         };
         println!("New board");
-        Backgammon::display_board(&current_state.board);
+        current_state.display_board();
         // Switch Agents
         curr_player = if curr_player == Agent::Mcts {Agent::Random} else {Agent::Mcts}
     }

@@ -61,7 +61,7 @@ pub struct ResNet {
     value_head: nn::SequentialT,
 }
 
-const INPUT_SIZE: i64 = 5; // arbitrary
+const INPUT_SIZE: i64 = 6; // arbitrary
 const POLICY_OUTPUT_SIZE: i64 = 1352; // arbitrary
 
 impl Default for ResNet {

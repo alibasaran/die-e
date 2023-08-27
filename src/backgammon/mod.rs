@@ -100,7 +100,7 @@ impl Backgammon {
         self.board = next_state;
     }
 
-    pub fn as_tensor(&self, player: i64) -> Tensor {
+    pub fn as_tensor(&self, player: i64, is_second_play: bool) -> Tensor {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
         let board = self.board;
@@ -130,13 +130,19 @@ impl Backgammon {
             ], 0
         ).view([4, 6, 1]);
 
+        let second_play_tensor = if is_second_play {
+            Tensor::full(24, 1, full_options).view([4, 6, 1])
+        } else {
+            Tensor::full(24, 0, full_options).view([4, 6, 1])
+        };
+
         Tensor::stack(&[
-            board_tensor, player_tensor, hit_tensor, collect_tensor, roll_tensor
+            board_tensor, player_tensor, hit_tensor, collect_tensor, roll_tensor, second_play_tensor
         ], 2).permute([3, 2, 0, 1])
     }
 
-    pub fn display_board(board: &Board) {
-        let (points, pieces_hit, pieces_collected) = board;
+    pub fn display_board(&self) {
+        let (points, pieces_hit, pieces_collected) = self.board;
         let mut total_player_1 = 0;
         let mut total_player_2 = 0;
 
