@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt, vec};
 use tch::Tensor;
 
-use crate::alphazero::nnet::get_device;
+use crate::constants::DEVICE;
 
 // (the board itself, pieces_hit, pieces_collected)
 pub type Board = ([i8; 24], (u8, u8), (u8, u8));
@@ -16,6 +16,7 @@ pub enum Player {
     ONE = -1,
     TWO = 1,
 }
+
 
 #[derive(Debug)]
 pub struct ActionNode {
@@ -40,6 +41,7 @@ impl PartialEq for ActionNode {
 impl ActionNode {
     #[cfg(not(tarpaulin_include))]
     fn format_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
+
         let node_prefix = if is_last { "└── " } else { "├── " };
         let child_prefix = if is_last { "    " } else { "│   " };
 
@@ -52,7 +54,6 @@ impl ActionNode {
             let new_prefix = format!("{}{}", prefix, child_prefix);
             child.format_tree(f, &new_prefix, is_last_child)?;
         }
-
         Ok(())
     }
 }
@@ -104,10 +105,9 @@ impl Backgammon {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
         let board = self.board;
-        let device = get_device();
-        let full_options = (tch::Kind::Float, device);
+        let full_options = (tch::Kind::Float, *DEVICE);
 
-        let board_tensor = Tensor::from_slice(&board.0).view([4, 6, 1]).to_device(device);
+        let board_tensor = Tensor::from_slice(&board.0).view([4, 6, 1]);
         let player_tensor = Tensor::full(24, player, full_options).view([4, 6, 1]);
         let hit_tensor = Tensor::cat(
             &[

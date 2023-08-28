@@ -1,14 +1,15 @@
-use rand::{distributions::WeightedIndex, prelude::Distribution, thread_rng, seq::SliceRandom};
-use tch::{nn::{Optimizer, Sgd, OptimizerConfig, self}, Tensor};
-use std::cmp::min;
 use itertools::multiunzip;
-
-use super::{encoding::decode, nnet::{ResNet, get_device}};
-
-use crate::{
-    backgammon::Backgammon,
-    mcts::{alpha_mcts, ACTION_SPACE_SIZE},
+use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
+use std::cmp::min;
+use tch::{
+    nn::{self, Optimizer, OptimizerConfig, Sgd},
+    Tensor,
 };
+
+use super::{encoding::decode, nnet::ResNet};
+
+use crate::{backgammon::Backgammon, mcts::alpha_mcts::alpha_mcts, constants::DEVICE};
+
 
 pub struct AlphaZeroConfig {
     pub learn_iterations: usize,
@@ -31,8 +32,7 @@ pub struct MemoryFragment {
 
 impl AlphaZero {
     pub fn new(config: AlphaZeroConfig) -> Self {
-        let device = get_device();
-        let vs = nn::VarStore::new(device);
+        let vs = nn::VarStore::new(*DEVICE);
         let opt = Sgd::default().build(&vs, 1e-2).unwrap();
         AlphaZero {
             model: ResNet::new(vs),
@@ -94,15 +94,15 @@ impl AlphaZero {
                         state: mem.state.shallow_clone(),
                     })
                     .collect();
-            } else if  hard_lock == 10 {
+            } else if hard_lock == 10 {
                 return memory
-                .iter()
-                .map(|mem| MemoryFragment {
-                    outcome: if mem.outcome == 1 { 1 } else { -1 },
-                    ps: mem.ps.shallow_clone(),
-                    state: mem.state.shallow_clone(),
-                })
-                .collect();
+                    .iter()
+                    .map(|mem| MemoryFragment {
+                        outcome: if mem.outcome == 1 { 1 } else { -1 },
+                        ps: mem.ps.shallow_clone(),
+                        state: mem.state.shallow_clone(),
+                    })
+                    .collect();
             }
             hard_lock += 1;
             // If double roll
@@ -117,28 +117,37 @@ impl AlphaZero {
     }
 
     fn train(&mut self, memory: &mut Vec<MemoryFragment>) {
-        let device = get_device();
         let mut rng = thread_rng();
         memory.shuffle(&mut rng);
         for batch_idx in (0..memory.len()).step_by(self.config.batch_size) {
             let sample = &memory[batch_idx..min(batch_idx + self.config.batch_size, memory.len())];
             let (outcomes, ps_values, states): (Vec<i8>, Vec<Tensor>, Vec<Tensor>) =
                 multiunzip(sample.iter().map(|fragment| {
-                    (fragment.outcome, fragment.ps.shallow_clone(), fragment.state.shallow_clone())
+                    (
+                        fragment.outcome,
+                        fragment.ps.shallow_clone(),
+                        fragment.state.shallow_clone(),
+                    )
                 }));
 
             // Format tensors to process
-            let outcome_tensor = Tensor::from_slice(&outcomes)
-                .unsqueeze(1)
-                .to_device_(device, tch::Kind::Float, false, false);
-            
-            let ps_tensor = Tensor::stack(&ps_values, 0)
-                .to_device_(device, tch::Kind::Float, false, false);
-            
-            let state_tensor = Tensor::stack(&states, 0)
-                .squeeze()
-                .to_device_(device, tch::Kind::Float, false, false);
-            
+            let outcome_tensor = Tensor::from_slice(&outcomes).unsqueeze(1).to_device_(
+                *DEVICE,
+                tch::Kind::Float,
+                false,
+                false,
+            );
+
+            let ps_tensor =
+                Tensor::stack(&ps_values, 0).to_device_(*DEVICE, tch::Kind::Float, false, false);
+
+            let state_tensor = Tensor::stack(&states, 0).squeeze().to_device_(
+                *DEVICE,
+                tch::Kind::Float,
+                false,
+                false,
+            );
+
             let (out_policy, out_value) = self.model.forward_t(&state_tensor, true);
             let out_policy = out_policy.squeeze();
 
@@ -148,8 +157,15 @@ impl AlphaZero {
             println!("outcome_tensor size: {:?}", outcome_tensor.size());
 
             // Calculate loss
-            let policy_loss = out_policy.to_device(device).cross_entropy_loss::<Tensor>(&ps_tensor, None, tch::Reduction::Mean, -100, 0.0);
-            let outcome_loss = out_value.to_device(device).mse_loss(&outcome_tensor, tch::Reduction::Mean);
+            let policy_loss = out_policy.to_device(*DEVICE).cross_entropy_loss::<Tensor>(
+                    &ps_tensor,
+                    None,
+                    tch::Reduction::Mean,
+                    -100,
+                    0.0,
+                );
+            let outcome_loss =
+                out_value.to_device(*DEVICE).mse_loss(&outcome_tensor, tch::Reduction::Mean);
             let loss = policy_loss + outcome_loss;
 
             self.optimizer.zero_grad();
@@ -168,7 +184,6 @@ impl AlphaZero {
             for _ in 0..self.config.num_epochs {
                 self.train(&mut memory);
             }
-            
         }
     }
 

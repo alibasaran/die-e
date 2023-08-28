@@ -8,6 +8,8 @@ use tch::{
     Tensor,
 };
 
+use crate::constants::DEVICE;
+
 /*
 Constants
 
@@ -70,9 +72,8 @@ impl Default for ResNet {
             padding: 1,
             ..Default::default()
         };
-        let device = get_device();
-        println!("Device: {:?}", device);
-        let vs = nn::VarStore::new(device);
+        println!("*DEVICE: {:?}", *DEVICE);
+        let vs = nn::VarStore::new(*DEVICE);
         let root = vs.root();
 
         let init_block = nn::seq_t()
@@ -123,28 +124,31 @@ impl Default for ResNet {
 
 impl ResNet {
     pub fn new(vs: VarStore) -> Self {
-        ResNet {vs, ..Default::default()}
+        ResNet {
+            vs,
+            ..Default::default()
+        }
     }
 
     pub fn forward_t(&self, xs: &Tensor, train: bool) -> (Tensor, Tensor) {
-        let device = get_device();
-        let new_x = xs.apply_t(&self.init_block, train)
+        let new_x = xs
+            .apply_t(&self.init_block, train)
             .apply_t(&self.res_layer, train);
 
-        let policy = new_x.apply_t(&self.policy_head, train)
-            .to_device_(device, tch::Kind::Float, false, false);
-        
-        let value = new_x.apply_t(&self.value_head, train)
-            .to_device_(device, tch::Kind::Float, false, false);
+        let policy = new_x.apply_t(&self.policy_head, train).to_device_(
+            *DEVICE,
+            tch::Kind::Float,
+            false,
+            false,
+        );
+
+        let value = new_x.apply_t(&self.value_head, train).to_device_(
+            *DEVICE,
+            tch::Kind::Float,
+            false,
+            false,
+        );
 
         (policy, value)
-    }
-}
-
-pub fn get_device() -> tch::Device {
-    if tch::utils::has_mps() {
-        tch::Device::Mps
-    } else {
-        tch::Device::cuda_if_available()
     }
 }

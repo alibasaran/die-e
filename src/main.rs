@@ -1,10 +1,4 @@
-pub use backgammon::Backgammon;
-
-pub mod backgammon;
-pub mod mcts;
-pub mod alphazero;
-
-use crate::alphazero::alphazero::{AlphaZero, AlphaZeroConfig};
+use die_e::alphazero::alphazero::{AlphaZeroConfig, AlphaZero};
 
 
 fn main() {

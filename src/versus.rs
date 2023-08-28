@@ -3,7 +3,7 @@ use rand::{seq::SliceRandom, thread_rng};
 use serde::{Serialize, Deserialize};
 use nanoid::nanoid;
 
-use crate::{backgammon::Backgammon, mcts::{mct_search, random_play}};
+use crate::{backgammon::Backgammon, mcts::{mcts::mct_search, utils::random_play}};
 
 
 /*
