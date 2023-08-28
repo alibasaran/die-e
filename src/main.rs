@@ -157,12 +157,13 @@ d6aGH6_F9egx9OpBISBHR
 
 fn main() {
     let config = AlphaZeroConfig {
-        learn_iterations: 1000,
-        self_play_iterations: 1000,
+        learn_iterations: 1,
+        self_play_iterations: 4,
+        batch_size: 2,
+        num_epochs: 1,
     };
-    let az = AlphaZero::new(config);
-    let memory = az.self_play();
-    println!("{:?}", memory)
+    let mut az = AlphaZero::new(config);
+    az.learn();
 }
 
 fn play_games_and_save(iterations: usize) {

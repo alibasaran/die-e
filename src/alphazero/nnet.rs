@@ -3,7 +3,7 @@ use std::{default, ops::Add};
 use arrayvec::ArrayVec;
 use rayon::vec;
 use tch::{
-    nn::{self, ModuleT},
+    nn::{self, ModuleT, VarStore},
     utils::has_mps,
     Tensor,
 };
@@ -122,12 +122,21 @@ impl Default for ResNet {
 }
 
 impl ResNet {
+    pub fn new(vs: VarStore) -> Self {
+        ResNet {vs, ..Default::default()}
+    }
+
     pub fn forward_t(&self, xs: &Tensor, train: bool) -> (Tensor, Tensor) {
+        let device = get_device();
         let new_x = xs.apply_t(&self.init_block, train)
             .apply_t(&self.res_layer, train);
 
-        let policy = new_x.apply_t(&self.policy_head, train);
-        let value = new_x.apply_t(&self.value_head, train);
+        let policy = new_x.apply_t(&self.policy_head, train)
+            .to_device_(device, tch::Kind::Float, false, false);
+        
+        let value = new_x.apply_t(&self.value_head, train)
+            .to_device_(device, tch::Kind::Float, false, false);
+
         (policy, value)
     }
 }

@@ -1,8 +1,9 @@
-use arrayvec::ArrayVec;
-use rand::{distributions::WeightedIndex, prelude::Distribution, thread_rng};
-use tch::{nn::Adam, Tensor};
+use rand::{distributions::WeightedIndex, prelude::Distribution, thread_rng, seq::SliceRandom};
+use tch::{nn::{Optimizer, Sgd, OptimizerConfig, self}, Tensor};
+use std::cmp::min;
+use itertools::multiunzip;
 
-use super::{encoding::decode, nnet::ResNet};
+use super::{encoding::decode, nnet::{ResNet, get_device}};
 
 use crate::{
     backgammon::Backgammon,
@@ -12,11 +13,13 @@ use crate::{
 pub struct AlphaZeroConfig {
     pub learn_iterations: usize,
     pub self_play_iterations: usize,
+    pub num_epochs: usize,
+    pub batch_size: usize,
 }
 
 pub struct AlphaZero {
     model: ResNet,
-    optimizer: Adam,
+    optimizer: Optimizer,
     config: AlphaZeroConfig,
 }
 #[derive(Debug)]
@@ -28,9 +31,12 @@ pub struct MemoryFragment {
 
 impl AlphaZero {
     pub fn new(config: AlphaZeroConfig) -> Self {
+        let device = get_device();
+        let vs = nn::VarStore::new(device);
+        let opt = Sgd::default().build(&vs, 1e-2).unwrap();
         AlphaZero {
-            model: ResNet::default(),
-            optimizer: Adam::default(),
+            model: ResNet::new(vs),
+            optimizer: opt,
             config,
         }
     }
@@ -47,7 +53,7 @@ impl AlphaZero {
         // rather than the usual two that would be played on a normal role
         // So we feed doubles into the network as two back to back normal roles from the same player
         let mut is_second_play = false;
-
+        let mut hard_lock = 0;
         loop {
             println!("Rolled die: {:?}", bg.roll);
             println!("Player: {}", player);
@@ -88,7 +94,17 @@ impl AlphaZero {
                         state: mem.state.shallow_clone(),
                     })
                     .collect();
+            } else if  hard_lock == 10 {
+                return memory
+                .iter()
+                .map(|mem| MemoryFragment {
+                    outcome: if mem.outcome == 1 { 1 } else { -1 },
+                    ps: mem.ps.shallow_clone(),
+                    state: mem.state.shallow_clone(),
+                })
+                .collect();
             }
+            hard_lock += 1;
             // If double roll
             if bg.roll.1 == bg.roll.0 && !is_second_play {
                 is_second_play = true;
@@ -97,6 +113,62 @@ impl AlphaZero {
                 player *= -1;
                 bg.roll_die();
             }
+        }
+    }
+
+    fn train(&mut self, memory: &mut Vec<MemoryFragment>) {
+        let device = get_device();
+        let mut rng = thread_rng();
+        memory.shuffle(&mut rng);
+        for batch_idx in (0..memory.len()).step_by(self.config.batch_size) {
+            let sample = &memory[batch_idx..min(batch_idx + self.config.batch_size, memory.len())];
+            let (outcomes, ps_values, states): (Vec<i8>, Vec<Tensor>, Vec<Tensor>) =
+                multiunzip(sample.iter().map(|fragment| {
+                    (fragment.outcome, fragment.ps.shallow_clone(), fragment.state.shallow_clone())
+                }));
+
+            // Format tensors to process
+            let outcome_tensor = Tensor::from_slice(&outcomes)
+                .unsqueeze(1)
+                .to_device_(device, tch::Kind::Float, false, false);
+            
+            let ps_tensor = Tensor::stack(&ps_values, 0)
+                .to_device_(device, tch::Kind::Float, false, false);
+            
+            let state_tensor = Tensor::stack(&states, 0)
+                .squeeze()
+                .to_device_(device, tch::Kind::Float, false, false);
+            
+            let (out_policy, out_value) = self.model.forward_t(&state_tensor, true);
+            let out_policy = out_policy.squeeze();
+
+            println!("ps_tensor size: {:?}", ps_tensor.size());
+            println!("out_policy size: {:?}", out_policy.size());
+            println!("out_value size: {:?}", out_value.size());
+            println!("outcome_tensor size: {:?}", outcome_tensor.size());
+
+            // Calculate loss
+            let policy_loss = out_policy.to_device(device).cross_entropy_loss::<Tensor>(&ps_tensor, None, tch::Reduction::Mean, -100, 0.0);
+            let outcome_loss = out_value.to_device(device).mse_loss(&outcome_tensor, tch::Reduction::Mean);
+            let loss = policy_loss + outcome_loss;
+
+            self.optimizer.zero_grad();
+            loss.backward();
+            self.optimizer.step();
+        }
+    }
+
+    pub fn learn(&mut self) {
+        for _ in 0..self.config.learn_iterations {
+            let mut memory: Vec<MemoryFragment> = vec![];
+            for _ in 0..self.config.self_play_iterations {
+                let mut res = self.self_play();
+                memory.append(&mut res);
+            }
+            for _ in 0..self.config.num_epochs {
+                self.train(&mut memory);
+            }
+            
         }
     }
 
