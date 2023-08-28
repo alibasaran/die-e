@@ -261,7 +261,7 @@ mod get_normal_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[20] = -1;
-            let moves = Backgammon::get_normal_moves(&vec![1], state, -1);
+            let moves = Backgammon::get_normal_moves(&[1], state, -1);
             assert_eq!(moves[0].value, (20, 19));
         }
 
@@ -271,7 +271,7 @@ mod get_normal_moves {
             state.0 = [0; 24];
             state.0[20] = -1;
             state.0[19] = 2;
-            let moves = Backgammon::get_normal_moves(&vec![1], state, -1);
+            let moves = Backgammon::get_normal_moves(&[1], state, -1);
             assert!(moves.is_empty())
         }
         #[test]
@@ -279,7 +279,7 @@ mod get_normal_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[20] = -1;
-            let moves = Backgammon::get_normal_moves(&vec![1, 1], state, -1);
+            let moves = Backgammon::get_normal_moves(&[1, 1], state, -1);
             let tree = &moves[0];
             assert_eq!(tree.value, (20, 19));
             assert_eq!(tree.children[0].value, (19, 18));
@@ -290,7 +290,7 @@ mod get_normal_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[20] = -1;
-            let moves = Backgammon::get_normal_moves(&vec![2, 1], state, -1);
+            let moves = Backgammon::get_normal_moves(&[2, 1], state, -1);
             let tree1 = ActionNode {
                 value: (20, 19),
                 children: vec![ActionNode {
@@ -317,7 +317,7 @@ mod get_normal_moves {
             board[0] = -1;
             state.0 = board;
 
-            let moves = Backgammon::get_normal_moves(&vec![1], state, -1);
+            let moves = Backgammon::get_normal_moves(&[1], state, -1);
             let expected = ActionNode {
                 value: (0, -1),
                 children: vec![],
@@ -332,7 +332,7 @@ mod get_normal_moves {
             board[0] = -1;
             state.0 = board;
 
-            let moves = Backgammon::get_normal_moves(&vec![6], state, -1);
+            let moves = Backgammon::get_normal_moves(&[6], state, -1);
             let expected = ActionNode {
                 value: (0, -1),
                 children: vec![],
@@ -348,7 +348,7 @@ mod get_normal_moves {
             board[5] = -1;
             state.0 = board;
 
-            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, -1);
+            let moves = Backgammon::get_normal_moves(&[6, 1], state, -1);
             let expected = ActionNode {
                 value: (0, -1),
                 children: vec![ActionNode {
@@ -368,7 +368,7 @@ mod get_normal_moves {
             board[4] = -1;
             state.0 = board;
 
-            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, -1);
+            let moves = Backgammon::get_normal_moves(&[6, 1], state, -1);
             let expected = ActionNode {
                 value: (4, -1),
                 children: vec![ActionNode {
@@ -389,7 +389,7 @@ mod get_normal_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[10] = 1;
-            let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+            let moves = Backgammon::get_normal_moves(&[1], state, 1);
             assert_eq!(moves[0].value, (10, 11));
         }
 
@@ -399,7 +399,7 @@ mod get_normal_moves {
             state.0 = [0; 24];
             state.0[10] = 1;
             state.0[11] = -2;
-            let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+            let moves = Backgammon::get_normal_moves(&[1], state, 1);
             assert!(moves.is_empty())
         }
         #[test]
@@ -407,7 +407,7 @@ mod get_normal_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[10] = 1;
-            let moves = Backgammon::get_normal_moves(&vec![1, 1], state, 1);
+            let moves = Backgammon::get_normal_moves(&[1, 1], state, 1);
             let tree = &moves[0];
             assert_eq!(tree.value, (10, 11));
             assert_eq!(tree.children[0].value, (11, 12));
@@ -418,7 +418,7 @@ mod get_normal_moves {
             let mut state = Backgammon::get_initial_state();
             state.0 = [0; 24];
             state.0[10] = 1;
-            let moves = Backgammon::get_normal_moves(&vec![2, 1], state, 1);
+            let moves = Backgammon::get_normal_moves(&[2, 1], state, 1);
             let tree1 = ActionNode {
                 value: (10, 11),
                 children: vec![ActionNode {
@@ -445,7 +445,7 @@ mod get_normal_moves {
             board[23] = 1;
             state.0 = board;
 
-            let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+            let moves = Backgammon::get_normal_moves(&[1], state, 1);
             let expected = ActionNode {
                 value: (23, -1),
                 children: vec![],
@@ -460,7 +460,7 @@ mod get_normal_moves {
             board[23] = 1;
             state.0 = board;
 
-            let trees = Backgammon::get_normal_moves(&vec![6], state, 1);
+            let trees = Backgammon::get_normal_moves(&[6], state, 1);
             let expected = ActionNode {
                 value: (23, -1),
                 children: vec![],
@@ -477,7 +477,7 @@ mod get_normal_moves {
             board[18] = 1;
             state.0 = board;
 
-            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, 1);
+            let moves = Backgammon::get_normal_moves(&[6, 1], state, 1);
             let expected = ActionNode {
                 value: (23, -1),
                 children: vec![ActionNode {
@@ -497,7 +497,7 @@ mod get_normal_moves {
             board[20] = 1;
             state.0 = board;
 
-            let moves = Backgammon::get_normal_moves(&vec![6, 1], state, 1);
+            let moves = Backgammon::get_normal_moves(&[6, 1], state, 1);
             let expected = ActionNode {
                 value: (20, -1),
                 children: vec![ActionNode {
@@ -585,7 +585,7 @@ mod extract_sequences_node {
         let mut state = Backgammon::get_initial_state();
         state.0 = [0; 24];
         state.0[10] = 1;
-        let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+        let moves = Backgammon::get_normal_moves(&[1], state, 1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(10, 11)]];
         assert_eq!(
             Backgammon::extract_sequences_node(moves.get(0).unwrap()),
@@ -598,7 +598,7 @@ mod extract_sequences_node {
         let mut state = Backgammon::get_initial_state();
         state.0 = [0; 24];
         state.0[20] = -1;
-        let moves = Backgammon::get_normal_moves(&vec![1, 1], state, -1);
+        let moves = Backgammon::get_normal_moves(&[1, 1], state, -1);
         let tree = &moves[0];
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 18)]];
         assert_eq!(Backgammon::extract_sequences_node(tree), expected);
@@ -610,7 +610,7 @@ mod extract_sequences_node {
         state.0 = [0; 24];
         state.0[20] = -1;
         state.0[23] = -1;
-        let moves = Backgammon::get_normal_moves(&vec![1, 1], state, -1);
+        let moves = Backgammon::get_normal_moves(&[1, 1], state, -1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 18)], vec![(20, 19), (23, 22)]];
         assert_eq!(
             Backgammon::extract_sequences_node(moves.get(0).unwrap()),
@@ -628,7 +628,7 @@ mod extract_sequences_list {
         let mut state = Backgammon::get_initial_state();
         state.0 = [0; 24];
         state.0[10] = 1;
-        let moves = Backgammon::get_normal_moves(&vec![1], state, 1);
+        let moves = Backgammon::get_normal_moves(&[1], state, 1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(10, 11)]];
         assert_eq!(Backgammon::extract_sequences_list(moves), expected);
     }
@@ -638,7 +638,7 @@ mod extract_sequences_list {
         let mut state = Backgammon::get_initial_state();
         state.0 = [0; 24];
         state.0[20] = -1;
-        let moves = Backgammon::get_normal_moves(&vec![1, 1], state, -1);
+        let moves = Backgammon::get_normal_moves(&[1, 1], state, -1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 18)]];
         assert_eq!(Backgammon::extract_sequences_list(moves), expected);
     }
@@ -648,7 +648,7 @@ mod extract_sequences_list {
         let mut state = Backgammon::get_initial_state();
         state.0 = [0; 24];
         state.0[20] = -1;
-        let moves = Backgammon::get_normal_moves(&vec![2, 1], state, -1);
+        let moves = Backgammon::get_normal_moves(&[2, 1], state, -1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 17)], vec![(20, 18), (18, 17)]];
         assert_eq!(Backgammon::extract_sequences_list(moves), expected);
     }
@@ -660,7 +660,7 @@ mod extract_sequences_list {
         state.0[20] = -1;
         state.0[19] = 2;
         state.0[16] = -1;
-        let moves = Backgammon::get_normal_moves(&vec![2, 1], state, -1);
+        let moves = Backgammon::get_normal_moves(&[2, 1], state, -1);
         let expected: Vec<Vec<(i8, i8)>> = vec![
             vec![(16, 15), (15, 13)],
             vec![(16, 15), (20, 18)],
