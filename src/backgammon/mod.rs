@@ -107,7 +107,9 @@ impl Backgammon {
         let board = self.board;
         let full_options = (tch::Kind::Float, *DEVICE);
 
-        let board_tensor = Tensor::from_slice(&board.0).view([4, 6, 1]);
+        let board_tensor = Tensor::from_slice(&board.0)
+            .to_device(*DEVICE)
+            .view([4, 6, 1]);
         let player_tensor = Tensor::full(24, player, full_options).view([4, 6, 1]);
         let hit_tensor = Tensor::cat(
             &[

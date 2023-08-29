@@ -1,4 +1,4 @@
-use std::{ops::Add};
+use std::ops::Add;
 
 
 
@@ -55,7 +55,7 @@ TODO: Implement ResNet
 */
 #[derive(Debug)]
 pub struct ResNet {
-    vs: nn::VarStore,
+    pub vs: nn::VarStore,
     init_block: nn::SequentialT,
     res_layer: nn::SequentialT,
     policy_head: nn::SequentialT,

@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use indicatif::ProgressIterator;
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet};
+use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON}};
 
 use super::{node_store::NodeStore, node::Node, MCTS_CONFIG, mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
@@ -28,7 +28,30 @@ fn select_alpha(node_idx: usize, store: &NodeStore) -> Node {
         .expect("select_alpha called on node without children!")
 }
 
+pub fn apply_dirichlet_to_root(root_idx: usize, player: i64, store: &mut NodeStore, net: &ResNet, state: &Backgammon) {
+    let mut root_node = store.get_node(root_idx);
+    
+    let (mut policy, _) = net.forward_t(&state.as_tensor(player, root_node.is_double_move), false);
+
+    policy = policy.softmax(1, None)
+        .permute([1, 0]);
+    let policy_vec = turn_policy_to_probs(&policy, &root_node);
+    root_node.alpha_expand(store, policy_vec);
+    if root_node.children.len() < 2 {
+        // Don't apply dirichlet on a node with a single child
+        return
+    }
+    // Set visits to 1
+    root_node.visits = 1.;
+    // Apply dirichlet to root policies
+    root_node.apply_dirichlet(DIRICHLET_ALPHA, DIRICHLET_EPSILON, store);
+    store.set_node(&root_node)
+}
+
 pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: bool) -> Option<Tensor> {
+    // Set no_grad_guard
+    let _guard = tch::no_grad_guard();
+    
     // Check if game already is terminal at root
     if Backgammon::check_win_without_player(state.board).is_some() {
         return None;
@@ -36,8 +59,11 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: 
     let mut store = NodeStore::new();
     let roll = state.roll;
     let root_node_idx = store.add_node(state.clone(), None, None, player, Some(roll), root_is_double, 0.0);
+    
+    let player = player as i64;
+    apply_dirichlet_to_root(root_node_idx, player, &mut store, net, state);
+    
     let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS");
-
     for _ in pb_iter {
         // Don't forget to save the node later into the store
         let idx = alpha_select_leaf_node(root_node_idx, &store);
@@ -46,18 +72,18 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: 
         let value: f32;
 
         if !selected_node.is_terminal() {
-            let (mut policy, eval) = net.forward_t(&state.as_tensor(player as i64, selected_node.is_double_move), false);
+            let (mut policy, eval) = net.forward_t(&state.as_tensor(player, selected_node.is_double_move), false);
 
-            policy = policy.softmax(1, tch::Kind::Float)
+            policy = policy.softmax(1, None)
                 .permute([1, 0]);
             let policy_vec = turn_policy_to_probs(&policy, &selected_node);
-            value = eval.double_value(&[0]) as f32;
             selected_node.alpha_expand(&mut store, policy_vec);
+            value = eval.double_value(&[0]) as f32;
         } else {
             value = ((Backgammon::check_win_without_player(selected_node.state.board).unwrap() + 1) / 2) as f32;
         }
 
         backpropagate(idx, value, &mut store);
     }
-    get_prob_tensor(state, root_node_idx, &store, player)
+    get_prob_tensor(state, root_node_idx, &store, player as i8)
 }

@@ -2,16 +2,16 @@ use itertools::multiunzip;
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
 use std::cmp::min;
 use tch::{
-    nn::{self, Optimizer, OptimizerConfig, Sgd},
+    nn::{self, Optimizer, OptimizerConfig, Sgd, Adam},
     Tensor,
 };
 
 use super::{encoding::decode, nnet::ResNet};
 
-use crate::{backgammon::Backgammon, mcts::alpha_mcts::alpha_mcts, constants::DEVICE};
-
+use crate::{backgammon::Backgammon, constants::DEVICE, mcts::alpha_mcts::alpha_mcts};
 
 pub struct AlphaZeroConfig {
+    pub temperature: f64,
     pub learn_iterations: usize,
     pub self_play_iterations: usize,
     pub num_epochs: usize,
@@ -30,10 +30,17 @@ pub struct MemoryFragment {
     state: Tensor, // Encoded game state
 }
 
+/*
+torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False, *, foreach=None, maximize=False, capturable=False, differentiable=False, fused=None)
+*/
+
 impl AlphaZero {
     pub fn new(config: AlphaZeroConfig) -> Self {
         let vs = nn::VarStore::new(*DEVICE);
-        let opt = Sgd::default().build(&vs, 1e-2).unwrap();
+        let opt = Adam::default()
+            .wd(1e-4)
+            .build(&vs, 1e-3).unwrap();
+            
         AlphaZero {
             model: ResNet::new(vs),
             optimizer: opt,
@@ -59,7 +66,7 @@ impl AlphaZero {
             println!("Player: {}", player);
             bg.display_board();
             // Get probabilities from mcts
-            let pi = match alpha_mcts(&bg, player, &self.model, is_second_play) {
+            let mut pi = match alpha_mcts(&bg, player, &self.model, is_second_play) {
                 Some(pi) => pi,
                 None => {
                     println!("No valid moves!");
@@ -70,8 +77,10 @@ impl AlphaZero {
                 }
             };
 
+            // Apply temperature to pi
+            let temperatured_pi = pi.pow_(1.0 / self.config.temperature);
             // Select an action from probabilities
-            let selected_action = self.weighted_select_tensor_idx(&pi);
+            let selected_action = self.weighted_select_tensor_idx(&temperatured_pi);
 
             // Save results to memory
             memory.push(MemoryFragment {
@@ -158,14 +167,15 @@ impl AlphaZero {
 
             // Calculate loss
             let policy_loss = out_policy.to_device(*DEVICE).cross_entropy_loss::<Tensor>(
-                    &ps_tensor,
-                    None,
-                    tch::Reduction::Mean,
-                    -100,
-                    0.0,
-                );
-            let outcome_loss =
-                out_value.to_device(*DEVICE).mse_loss(&outcome_tensor, tch::Reduction::Mean);
+                &ps_tensor,
+                None,
+                tch::Reduction::Mean,
+                -100,
+                0.0,
+            );
+            let outcome_loss = out_value
+                .to_device(*DEVICE)
+                .mse_loss(&outcome_tensor, tch::Reduction::Mean);
             let loss = policy_loss + outcome_loss;
 
             self.optimizer.zero_grad();
@@ -175,7 +185,7 @@ impl AlphaZero {
     }
 
     pub fn learn(&mut self) {
-        for _ in 0..self.config.learn_iterations {
+        for i in 0..self.config.learn_iterations {
             let mut memory: Vec<MemoryFragment> = vec![];
             for _ in 0..self.config.self_play_iterations {
                 let mut res = self.self_play();
@@ -183,6 +193,17 @@ impl AlphaZero {
             }
             for _ in 0..self.config.num_epochs {
                 self.train(&mut memory);
+            }
+            let model_save_path = format!("./models/model_{}.pt", i);
+            match self.model.vs.save(&model_save_path) {
+                Ok(_) => println!(
+                    "Iteration {} saved successfully, path: {}",
+                    i, &model_save_path
+                ),
+                Err(e) => println!(
+                    "Unable to save model: {}, caught error: {}",
+                    &model_save_path, e
+                ),
             }
         }
     }

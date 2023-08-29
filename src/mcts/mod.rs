@@ -3,6 +3,7 @@ pub mod node_store;
 pub mod mcts;
 pub mod alpha_mcts;
 pub mod utils;
+mod noise;
 
 pub struct MctsConfig {
     iterations: usize,
