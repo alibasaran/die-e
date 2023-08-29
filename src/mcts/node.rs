@@ -48,6 +48,22 @@ impl Node {
         }
     }
 
+    pub fn empty() -> Self {
+        Node {
+            state: Backgammon::new(),
+            parent: None,
+            idx: 0,
+            children: Vec::new(),
+            action_taken: None,
+            expandable_moves: Vec::new(),
+            player: -1,
+            visits: 0.0,
+            value: 0.0,
+            policy: 0.,
+            is_double_move: false,
+        }
+    }
+
     pub fn new_with_roll(
         mut state: Backgammon,
         idx: usize,

@@ -44,6 +44,10 @@ impl NodeStore {
         &mut self.nodes[idx]
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
     pub fn pretty_print(&self, index: usize, depth: usize) {
         self._pretty_print(index, depth, 0)
     }

@@ -1,11 +1,15 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Mul};
 
+use arrayvec::ArrayVec;
 use indicatif::ProgressIterator;
+use itertools::Itertools;
+use rand::thread_rng;
+use rand_distr::{Dirichlet, Distribution};
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON}};
+use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::noise::apply_dirichlet};
 
-use super::{node_store::NodeStore, node::Node, MCTS_CONFIG, mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
+use super::{node_store::NodeStore, node::Node, MCTS_CONFIG, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
 fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
     let node = store.get_node(node_idx);
@@ -72,7 +76,7 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: 
         let value: f32;
 
         if !selected_node.is_terminal() {
-            let (mut policy, eval) = net.forward_t(&state.as_tensor(player, selected_node.is_double_move), false);
+            let (mut policy, eval) = net.forward_t(&selected_node.state.as_tensor(player, selected_node.is_double_move), false);
 
             policy = policy.softmax(1, None)
                 .permute([1, 0]);
@@ -86,4 +90,106 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: 
         backpropagate(idx, value, &mut store);
     }
     get_prob_tensor(state, root_node_idx, &store, player as i8)
+}
+
+
+/*
+    Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
+*/
+pub fn alpha_mcts_parallel(store: &mut NodeStore, states: Vec<Backgammon>, player: i8, net: &ResNet, root_is_double: bool) {
+    // Set no_grad_guard
+    let _guard = tch::no_grad_guard();
+    assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
+    
+    let player = player as i64;
+    // Convert all states a tensor
+    let states_vec = states.iter().map(|state| state.as_tensor(player, root_is_double)).collect_vec();
+    let states_tensor = Tensor::stack(
+        &states_vec,
+        0
+    ).squeeze();
+    let (policy, _) = net.forward_t(&states_tensor, false);
+    // Apply dirichlet to root policy tensor
+    let policy_dir = apply_dirichlet(&policy, DIRICHLET_ALPHA, DIRICHLET_EPSILON);
+
+    // Create root node for each game state
+    for (_, state) in states.iter().enumerate() {
+        store.add_node(*state, None, None, player as i8, Some(state.roll), root_is_double, 0.0);
+    }
+
+    // Expand root node for each game state
+    for (i, _) in states.iter().enumerate() {
+        // Create root node for each game state
+        let mut root = store.get_node(i);
+        root.visits = 1.;
+        let prob_vec = turn_policy_to_probs(&policy_dir.get(i as i64), &root);
+        // Expand root
+        root.alpha_expand(store, prob_vec)
+    }
+
+    store.pretty_print(0, 1);
+
+    /*
+        Create two vectors:
+            - Games:
+                - values ranging from 0 to 100
+                - used to track how many games are still not completed
+            - Selected_nodes:
+                - 100 node values
+                - selected_nodes[i] refers to the node that was last selected for game[i]
+
+    */
+    let mut games: ArrayVec<usize, 100> = ArrayVec::from_iter(0..100);
+    let mut selected_nodes: ArrayVec<Node, 100> = ArrayVec::from_iter((0..100).map(|_| Node::empty()));
+
+    let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS Paralel");
+    'iterloop: for _ in pb_iter {
+        let mut ended_games = vec![];
+        for (root_idx, game_idx) in games.iter().enumerate() {
+            let idx = alpha_select_leaf_node(root_idx, store);
+            let selected_node = store.get_node(idx);
+    
+            if selected_node.is_terminal() {
+                ended_games.push(root_idx);
+                let value = ((Backgammon::check_win_without_player(selected_node.state.board).unwrap() + 1) / 2) as f32;
+                backpropagate(idx, value, store);
+            } else {
+                selected_nodes[*game_idx] = selected_node
+            }
+        }
+        // Remove finished games
+        for game in ended_games {
+            games.remove(game);
+        }
+        // No games to search, end search
+        if games.is_empty() {
+            break 'iterloop;
+        }
+        
+        // Convert ongoing (not terminal) games into a tensor
+        let selected_states_vec = games.iter().map(|idx| {
+            let node = &selected_nodes[*idx];
+            node.state.as_tensor(player, node.is_double_move)
+        }).collect_vec();
+        let selected_states_tensor = Tensor::stack(
+            &selected_states_vec,
+            0
+        ).squeeze();
+        
+        // Calculate policies
+        let (policy, eval) = net.forward_t(&selected_states_tensor, false);
+        
+        // Expand and backprop selected nodes with their respective calculated policies and evals
+        for (i, game) in games.iter().enumerate() {
+            let i = i as i64;
+            let selected_node = &selected_nodes[*game];
+            let mut node_from_store = store.get_node(selected_node.idx);
+
+            let (policy_i, eval_i) = (policy.get(i), eval.get(i));
+            let policy_vec = turn_policy_to_probs(&policy_i, selected_node);
+            node_from_store.alpha_expand(store, policy_vec);
+            let value = eval_i.double_value(&[0]) as f32;
+            backpropagate(selected_node.idx, value, store)
+        }
+    }
 }

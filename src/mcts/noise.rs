@@ -1,5 +1,8 @@
 use rand::thread_rng;
 use rand_distr::{Dirichlet, Distribution};
+use tch::Tensor;
+
+use crate::constants::DEVICE;
 
 use super::{node::Node, node_store::NodeStore};
 
@@ -14,4 +17,17 @@ impl Node {
             child.policy = noise * eps + child.policy * (1. - eps)
         }
     }
+}
+
+/*
+    Apply dirichlet noise to a tensor
+*/
+pub fn apply_dirichlet(tensor: &Tensor, alpha: f32, eps: f32) -> Tensor {
+    let n_policies = tensor.size()[1] as usize;
+    let dirichlet = Dirichlet::new(&vec![alpha; n_policies]).unwrap();
+    let diriclet_tensor = Tensor::from_slice(&dirichlet.sample(&mut thread_rng()))
+        .to_device_(*DEVICE, tch::Kind::Float, false, false)
+        .unsqueeze(0);
+    let sf_tensor = tensor.softmax(1, None);
+    (1. - eps) * sf_tensor + eps * diriclet_tensor
 }

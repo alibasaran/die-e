@@ -57,7 +57,7 @@ impl ActionNode {
         Ok(())
     }
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Backgammon {
     pub board: Board,
     pub roll: (u8, u8),
