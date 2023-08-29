@@ -139,4 +139,11 @@ impl ResNet {
 
         (policy, value)
     }
+
+    pub fn forward_policy(&self, xs: &Tensor, train: bool) -> Tensor {
+        xs
+            .apply_t(&self.init_block, train)
+            .apply_t(&self.res_layer, train)
+            .apply_t(&self.policy_head, train)
+    }
 }

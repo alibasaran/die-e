@@ -108,7 +108,8 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: Vec<Backgammon>, playe
         &states_vec,
         0
     ).squeeze();
-    let (policy, _) = net.forward_t(&states_tensor, false);
+    // Get policy tensor
+    let policy = net.forward_policy(&states_tensor, false);
     // Apply dirichlet to root policy tensor
     let policy_dir = apply_dirichlet(&policy, DIRICHLET_ALPHA, DIRICHLET_EPSILON);
 
