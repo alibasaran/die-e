@@ -7,9 +7,9 @@ use itertools::Itertools;
 use rand_distr::{Distribution};
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON}, mcts::noise::apply_dirichlet};
+use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, N_SELF_PLAY_BATCHES}, mcts::noise::apply_dirichlet, MCTS_CONFIG};
 
-use super::{node_store::NodeStore, node::Node, MCTS_CONFIG, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
+use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
 fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
     let node = store.get_node(node_idx);
@@ -126,21 +126,19 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: Vec<Backgammon>, playe
         // Expand root
         root.alpha_expand(store, prob_vec)
     }
-
-    store.pretty_print(0, 1);
-
+    
     /*
         Create two vectors:
             - Games:
-                - values ranging from 0 to 100
+                - values ranging from 0 to N_SELF_PLAY_BATCHES
                 - used to track how many games are still not completed
             - Selected_nodes:
-                - 100 node values
+                - N_SELF_PLAY_BATCHES node values
                 - selected_nodes[i] refers to the node that was last selected for game[i]
 
     */
-    let mut games: ArrayVec<usize, 100> = ArrayVec::from_iter(0..100);
-    let mut selected_nodes: ArrayVec<Node, 100> = ArrayVec::from_iter((0..100).map(|_| Node::empty()));
+    let mut games: ArrayVec<usize, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter(0..N_SELF_PLAY_BATCHES);
+    let mut selected_nodes: ArrayVec<Node, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter((0..N_SELF_PLAY_BATCHES).map(|_| Node::empty()));
 
     let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS Paralel");
     'iterloop: for _ in pb_iter {

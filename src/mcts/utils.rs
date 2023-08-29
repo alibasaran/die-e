@@ -5,12 +5,12 @@ use tch::Tensor;
 
 use crate::{
     alphazero::encoding::encode,
-    backgammon::{Actions, Backgammon}, constants::DEVICE,
+    backgammon::{Actions, Backgammon}, constants::{DEVICE, ACTION_SPACE_SIZE},
 };
 
 
 
-use super::{node::Node, node_store::NodeStore, ACTION_SPACE_SIZE};
+use super::{node::Node, node_store::NodeStore};
 
 pub fn get_prob_tensor(
     state: &Backgammon,

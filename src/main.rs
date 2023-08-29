@@ -1,4 +1,4 @@
-use die_e::{alphazero::{nnet::ResNet}, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel}, backgammon::Backgammon};
+use die_e::{alphazero::{nnet::ResNet}, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel}, backgammon::Backgammon, constants::N_SELF_PLAY_BATCHES};
 
 
 fn main() {
@@ -14,11 +14,7 @@ fn main() {
     let mut store = NodeStore::new();
     let mut bg = Backgammon::new();
     bg.roll_die();
-    let states = vec![bg; 30];
+    let states = vec![bg; N_SELF_PLAY_BATCHES];
     let net = ResNet::default();
     alpha_mcts_parallel(&mut store, states, -1, &net, false);
-    // for i in 0..5 {
-    //     store.pretty_print(i, 1);
-    //     println!();
-    // }
 }

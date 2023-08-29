@@ -1,10 +1,20 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use die_e::{mcts::node::Node, backgammon::Backgammon};
+use criterion::{criterion_group, criterion_main, Criterion};
+use die_e::{mcts::{node::Node, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, backgammon::Backgammon, alphazero::nnet::ResNet, constants::N_SELF_PLAY_BATCHES};
 
-fn simulate_benchmark(c: &mut Criterion) {
-    let mut node = Node::new_with_roll(Backgammon::new(), 0, None, None, -1, (3, 1), false, 1.0);
-    c.bench_function("simulate from start", |b| b.iter(|| node.simulate(black_box(-1))));
+fn bench(c: &mut Criterion) { 
+    let mut group = c.benchmark_group("alpha_mcts_parallel");   
+    group.sample_size(10);
+    group.bench_function("alpha_mcts_parallel", |b| b.iter(|| {
+        let mut store = NodeStore::new();
+        let mut bg = Backgammon::new();
+        bg.roll_die();
+        let states = vec![bg; N_SELF_PLAY_BATCHES];
+        let net = ResNet::default();
+        alpha_mcts_parallel(&mut store, states, -1, &net, false);
+    }));
+    group.finish()
 }
 
-criterion_group!(benches, simulate_benchmark);
+
+criterion_group!(benches, bench);
 criterion_main!(benches);

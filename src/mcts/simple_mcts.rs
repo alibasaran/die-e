@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 
 use indicatif::ProgressIterator;
 
-use crate::backgammon::{Actions, Backgammon};
+use crate::{backgammon::{Actions, Backgammon}, MCTS_CONFIG};
 
-use super::{node::Node, node_store::NodeStore, MCTS_CONFIG};
+use super::{node::Node, node_store::NodeStore};
 
 
 pub fn mct_search(state: Backgammon, player: i8) -> Actions {

@@ -1,10 +1,10 @@
+use crate::MCTS_CONFIG;
 use crate::alphazero::encoding::encode;
 use crate::backgammon::{Actions, Backgammon};
 use rand::{seq::SliceRandom, Rng};
 use std::ops::Div;
 
 use super::node_store::NodeStore;
-use super::MCTS_CONFIG;
 
 #[derive(Clone, Debug)]
 pub struct Node {
