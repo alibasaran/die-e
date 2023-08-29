@@ -1,4 +1,4 @@
-use die_e::{alphazero::{alphazero::{AlphaZeroConfig, AlphaZero}, nnet::ResNet}, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel}, backgammon::Backgammon};
+use die_e::{alphazero::{nnet::ResNet}, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel}, backgammon::Backgammon};
 
 
 fn main() {

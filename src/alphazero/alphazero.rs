@@ -2,7 +2,7 @@ use itertools::multiunzip;
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
 use std::cmp::min;
 use tch::{
-    nn::{self, Optimizer, OptimizerConfig, Sgd, Adam},
+    nn::{self, Optimizer, OptimizerConfig, Adam},
     Tensor,
 };
 

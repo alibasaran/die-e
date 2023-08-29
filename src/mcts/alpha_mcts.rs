@@ -1,13 +1,13 @@
-use std::{cmp::Ordering, ops::Mul};
+use std::{cmp::Ordering};
 
 use arrayvec::ArrayVec;
 use indicatif::ProgressIterator;
 use itertools::Itertools;
-use rand::thread_rng;
-use rand_distr::{Dirichlet, Distribution};
+
+use rand_distr::{Distribution};
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::noise::apply_dirichlet};
+use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON}, mcts::noise::apply_dirichlet};
 
 use super::{node_store::NodeStore, node::Node, MCTS_CONFIG, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
