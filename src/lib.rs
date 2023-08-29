@@ -21,11 +21,13 @@ pub mod constants {
 
     lazy_static! {
         pub static ref DEVICE: Device = {
-            if tch::utils::has_mps() {
-                Device::Mps
-            } else {
-                Device::cuda_if_available()
-            }
+            // CPU improves the performans
+            Device::Cpu
+            // if tch::utils::has_mps() {
+            //     Device::Mps
+            // } else {
+            //     Device::cuda_if_available()
+            // }
         };
     }
 }
