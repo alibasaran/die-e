@@ -108,7 +108,7 @@ pub fn print_out_game(directory: &str, filename: &str) {
     for (idx, turn) in game.turns.iter().enumerate() {
         let player = if idx % 2 == 0 {-1} else {1};
         println!("[{}] {:?}", idx, turn);
-        curr_state.apply_move(&turn.action, player);
+        curr_state.apply_move(&turn.action);
         curr_state.display_board();
     }
     println!("Winner: {:?}", game.winner)
@@ -137,7 +137,7 @@ fn play_mcts_vs_random() -> Game {
         // Select action depending on the current agent
         let action: Vec<(i8, i8)> = match curr_player {
             Agent::Mcts => mct_search(current_state.clone(), mcts_idx),
-            Agent::Random => random_play(&current_state, -mcts_idx),
+            Agent::Random => random_play(&current_state),
             Agent::None => unreachable!(),
         };
         println!("\tAction: {:?}", action);

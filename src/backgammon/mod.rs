@@ -61,6 +61,8 @@ impl ActionNode {
 pub struct Backgammon {
     pub board: Board,
     pub roll: (u8, u8),
+    pub player: i8,
+    pub is_second_play: bool,
 }
 
 impl Default for Backgammon {
@@ -80,13 +82,17 @@ impl Backgammon {
                 (0, 0),
             ),
             roll: (0, 0),
+            player: -1,
+            is_second_play: false,
         }
     }
 
-    pub fn init_with_board(board: Board) -> Self {
+    pub fn init_with_fields(board: Board, player: i8, is_second_play: bool) -> Self {
         Backgammon {
             board,
             roll: (0, 0),
+            player,
+            is_second_play,
         }
     }
 
@@ -96,12 +102,19 @@ impl Backgammon {
         self.roll
     }
 
-    pub fn apply_move(&mut self, actions: &Actions, player: i8) {
-        let next_state = Self::get_next_state(self.board, actions, player);
+    pub fn apply_move(&mut self, actions: &Actions) {
+        let next_state = Self::get_next_state(self.board, actions, self.player);
         self.board = next_state;
+        if self.roll.0 == self.roll.1 && !self.is_second_play {
+            self.is_second_play = true;
+        } else {
+            self.is_second_play = false;
+            self.player *= -1;
+            self.roll_die();
+        }
     }
 
-    pub fn as_tensor(&self, player: i64, is_second_play: bool) -> Tensor {
+    pub fn as_tensor(&self) -> Tensor {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
         let board = self.board;
@@ -110,7 +123,7 @@ impl Backgammon {
         let board_tensor = Tensor::from_slice(&board.0)
             .to_device(*DEVICE)
             .view([4, 6, 1]);
-        let player_tensor = Tensor::full(24, player, full_options).view([4, 6, 1]);
+        let player_tensor = Tensor::full(24, self.player as i64, full_options).view([4, 6, 1]);
         let hit_tensor = Tensor::cat(
             &[
                 Tensor::full(12, board.1.0 as i64, full_options),
@@ -132,7 +145,7 @@ impl Backgammon {
             ], 0
         ).view([4, 6, 1]);
 
-        let second_play_tensor = if is_second_play {
+        let second_play_tensor = if self.is_second_play {
             Tensor::full(24, 1, full_options).view([4, 6, 1])
         } else {
             Tensor::full(24, 0, full_options).view([4, 6, 1])
@@ -280,7 +293,7 @@ impl Backgammon {
         }
     }
 
-    pub fn get_valid_moves(&self, player: i8) -> Vec<Actions> {
+    pub fn get_valid_moves(&self) -> Vec<Actions> {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
         let all_moves: Vec<u8> = match self.roll {
@@ -288,23 +301,23 @@ impl Backgammon {
             (r0, r1) if r0 > r1 => vec![r0, r1],
             (r0, r1) => vec![r1, r0],
         };
-        let action_trees = Self::_get_action_trees(&all_moves, self.board, player);
+        let action_trees = Self::_get_action_trees(&all_moves, self.board, self.player);
         // parse trees into actions here
         let actions = Self::extract_sequences_list(action_trees);
-        Self::remove_duplicate_states(self.board, actions, player)
+        Self::remove_duplicate_states(self.board, actions, self.player)
     }
 
-    pub fn get_valid_moves_len_always_2(&self, player: i8) -> Vec<Actions> {
+    pub fn get_valid_moves_len_always_2(&self) -> Vec<Actions> {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
         let all_moves: Vec<u8> = match self.roll {
             (r0, r1) if r0 > r1 => vec![r0, r1],
             (r0, r1) => vec![r1, r0],
         };
-        let action_trees = Self::_get_action_trees(&all_moves, self.board, player);
+        let action_trees = Self::_get_action_trees(&all_moves, self.board, self.player);
         // parse trees into actions here
         let actions = Self::extract_sequences_list(action_trees);
-        Self::remove_duplicate_states(self.board, actions, player)
+        Self::remove_duplicate_states(self.board, actions, self.player)
     }
 
     fn _get_action_trees(moves: &[u8], state: Board, player: i8) -> Vec<ActionNode> {

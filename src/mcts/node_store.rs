@@ -17,16 +17,14 @@ impl NodeStore {
         state: Backgammon,
         parent: Option<usize>,
         action_taken: Option<Actions>,
-        player: i8,
         roll: Option<(u8, u8)>,
-        is_double_move: bool,
         policy: f32,
     ) -> usize {
         let idx = self.nodes.len();
         let new_node = if let Some(roll) = roll {
-            Node::new_with_roll(state, idx, parent, action_taken, player, roll, is_double_move, policy)
+            Node::new_with_roll(state, idx, parent, action_taken, roll, policy)
         } else {
-            Node::new(state, idx, parent, action_taken, player, is_double_move, policy)
+            Node::new(state, idx, parent, action_taken, policy)
         };
         self.nodes.push(new_node);
         idx

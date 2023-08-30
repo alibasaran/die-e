@@ -1,10 +1,9 @@
-use std::{cmp::Ordering};
+use std::cmp::Ordering;
 
 use arrayvec::ArrayVec;
 use indicatif::ProgressIterator;
 use itertools::Itertools;
 
-use rand_distr::{Distribution};
 use tch::Tensor;
 
 use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, N_SELF_PLAY_BATCHES}, mcts::noise::apply_dirichlet, MCTS_CONFIG};
@@ -35,7 +34,7 @@ fn select_alpha(node_idx: usize, store: &NodeStore) -> Node {
 pub fn apply_dirichlet_to_root(root_idx: usize, player: i64, store: &mut NodeStore, net: &ResNet, state: &Backgammon) {
     let mut root_node = store.get_node(root_idx);
     
-    let (mut policy, _) = net.forward_t(&state.as_tensor(player, root_node.is_double_move), false);
+    let (mut policy, _) = net.forward_t(&state.as_tensor(), false);
 
     policy = policy.softmax(1, None)
         .permute([1, 0]);
@@ -52,7 +51,7 @@ pub fn apply_dirichlet_to_root(root_idx: usize, player: i64, store: &mut NodeSto
     store.set_node(&root_node)
 }
 
-pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: bool) -> Option<Tensor> {
+pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor> {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     
@@ -62,7 +61,7 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: 
     }
     let mut store = NodeStore::new();
     let roll = state.roll;
-    let root_node_idx = store.add_node(state.clone(), None, None, player, Some(roll), root_is_double, 0.0);
+    let root_node_idx = store.add_node(state.clone(), None, None, Some(roll), 0.0);
     
     let player = player as i64;
     apply_dirichlet_to_root(root_node_idx, player, &mut store, net, state);
@@ -76,7 +75,7 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet, root_is_double: 
         let value: f32;
 
         if !selected_node.is_terminal() {
-            let (mut policy, eval) = net.forward_t(&selected_node.state.as_tensor(player, selected_node.is_double_move), false);
+            let (mut policy, eval) = net.forward_t(&selected_node.state.as_tensor(), false);
 
             policy = policy.softmax(1, None)
                 .permute([1, 0]);
@@ -103,7 +102,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: Vec<Backgammon>, playe
     
     let player = player as i64;
     // Convert all states a tensor
-    let states_vec = states.iter().map(|state| state.as_tensor(player, root_is_double)).collect_vec();
+    let states_vec = states.iter().map(|state| state.as_tensor()).collect_vec();
     let states_tensor = Tensor::stack(
         &states_vec,
         0
@@ -115,7 +114,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: Vec<Backgammon>, playe
 
     // Create root node for each game state
     for (_, state) in states.iter().enumerate() {
-        store.add_node(*state, None, None, player as i8, Some(state.roll), root_is_double, 0.0);
+        store.add_node(*state, None, None, Some(state.roll), 0.0);
     }
 
     // Expand root node for each game state
@@ -168,7 +167,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: Vec<Backgammon>, playe
         // Convert ongoing (not terminal) games into a tensor
         let selected_states_vec = games.iter().map(|idx| {
             let node = &selected_nodes[*idx];
-            node.state.as_tensor(player, node.is_double_move)
+            node.state.as_tensor()
         }).collect_vec();
         let selected_states_tensor = Tensor::stack(
             &selected_states_vec,

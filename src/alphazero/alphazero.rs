@@ -66,7 +66,7 @@ impl AlphaZero {
             println!("Player: {}", player);
             bg.display_board();
             // Get probabilities from mcts
-            let mut pi = match alpha_mcts(&bg, player, &self.model, is_second_play) {
+            let mut pi = match alpha_mcts(&bg, player, &self.model) {
                 Some(pi) => pi,
                 None => {
                     println!("No valid moves!");
@@ -86,13 +86,13 @@ impl AlphaZero {
             memory.push(MemoryFragment {
                 outcome: player,
                 ps: pi,
-                state: bg.as_tensor(player as i64, is_second_play),
+                state: bg.as_tensor(),
             });
 
             // Decode and play selected action
             let decoded_action = decode(selected_action as u32, bg.roll, player);
             println!("Played action: {:?}\n\n", decoded_action);
-            bg.apply_move(&decoded_action, player);
+            bg.apply_move(&decoded_action);
 
             if let Some(winner) = Backgammon::check_win_without_player(bg.board) {
                 return memory
@@ -114,14 +114,6 @@ impl AlphaZero {
                     .collect();
             }
             hard_lock += 1;
-            // If double roll
-            if bg.roll.1 == bg.roll.0 && !is_second_play {
-                is_second_play = true;
-            } else {
-                is_second_play = false;
-                player *= -1;
-                bg.roll_die();
-            }
         }
     }
 

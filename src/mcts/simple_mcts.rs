@@ -15,7 +15,7 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
 
     let mut store = NodeStore::new();
     let roll = state.roll;
-    let root_node_idx = store.add_node(state, None, None, player, Some(roll), false, 0.0);
+    let root_node_idx = store.add_node(state, None, None, Some(roll), 0.0);
     let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("MCTS");
     for _ in pb_iter {
         // Don't forget to save the node later into the store

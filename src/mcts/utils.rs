@@ -42,7 +42,7 @@ pub fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {
     let mut values: Vec<f32> = vec![0.0; 1352];
     let mut encoded_values: Vec<usize> = Vec::with_capacity(node.expandable_moves.len());
     for action in &node.expandable_moves {
-        let encoded_value = encode(action.clone(), node.state.roll, node.player);
+        let encoded_value = encode(action.clone(), node.state.roll, node.state.player);
         encoded_values.push(encoded_value as usize);
         values[encoded_value as usize] = policy.double_value(&[encoded_value as i64]) as f32;
     }
@@ -57,9 +57,9 @@ pub fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {
     values
 }
 
-pub fn random_play(bg: &Backgammon, player: i8) -> Actions {
+pub fn random_play(bg: &Backgammon) -> Actions {
     let mut rng = rand::thread_rng();
-    let moves = Backgammon::get_valid_moves(bg, player);
+    let moves = bg.get_valid_moves();
 
     if moves.is_empty() {
         return vec![];

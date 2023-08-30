@@ -8,7 +8,7 @@ mod get_initial_state {
     fn get_initial_state_test() {
         let bg = Backgammon::new();
         let init = Backgammon::get_initial_state();
-        let bg_2 = Backgammon::init_with_board(init);
+        let bg_2 = Backgammon::init_with_fields(init, -1, false);
         let expected = (
             [
                 2, 0, 0, 0, 0, -5, 0, -3, 0, 0, 0, 5, -5, 0, 0, 0, 3, 0, 5, 0, 0, 0, 0, -2,
@@ -874,7 +874,7 @@ mod get_valid_moves {
         bg.board.0[19] = 2;
         bg.board.0[18] = 2;
         bg.roll = (1, 2);
-        assert!(bg.get_valid_moves(-1).is_empty());
+        assert!(bg.get_valid_moves().is_empty());
     }
 
     #[test]
@@ -883,9 +883,9 @@ mod get_valid_moves {
         bg.board.0 = [0; 24];
         bg.board.0[20] = -1;
         bg.roll = (1, 2);
-        let moves_1 = bg.get_valid_moves(-1);
+        let moves_1 = bg.get_valid_moves();
         bg.roll = (2, 1);
-        let moves_2 = bg.get_valid_moves(-1);
+        let moves_2 = bg.get_valid_moves();
         assert_eq!(
             moves_1,
             moves_2
@@ -899,7 +899,7 @@ mod get_valid_moves {
         bg.board.0[20] = -1;
         bg.roll = (1, 2);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 17)]];
-        assert_eq!(bg.get_valid_moves(-1), expected);
+        assert_eq!(bg.get_valid_moves(), expected);
     }
 
     #[test]
@@ -910,7 +910,7 @@ mod get_valid_moves {
         bg.board.1 .0 = 1;
         bg.roll = (1, 2);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(-1, 23)], vec![(-1, 22)]];
-        assert_eq!(bg.get_valid_moves(-1), expected);
+        assert_eq!(bg.get_valid_moves(), expected);
     }
 
     #[test]
@@ -920,6 +920,6 @@ mod get_valid_moves {
         bg.board.0[20] = -1;
         bg.roll = (1, 1);
         let expected: Vec<Vec<(i8, i8)>> = vec![vec![(20, 19), (19, 18), (18, 17), (17, 16)]];
-        assert_eq!(bg.get_valid_moves(-1), expected);
+        assert_eq!(bg.get_valid_moves(), expected);
     }
 }
