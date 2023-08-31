@@ -179,7 +179,7 @@ impl Node {
 
     pub fn simulate(&mut self, player: i8) -> f32 {
         let mut rng = rand::thread_rng();
-        let mut curr_state = self.state.clone();
+        let mut curr_state = self.state;
         let mut curr_player = self.state.player;
 
         for _ in 0..MCTS_CONFIG.simulate_round_limit {

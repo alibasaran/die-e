@@ -106,7 +106,7 @@ pub fn print_out_game(directory: &str, filename: &str) {
     println!("Player1: {:?} Player 2: {:?}", game.player1, game.player2);
     println!("Turns played: {}", &game.turns.len());
     for (idx, turn) in game.turns.iter().enumerate() {
-        let player = if idx % 2 == 0 {-1} else {1};
+        let _player = if idx % 2 == 0 {-1} else {1};
         println!("[{}] {:?}", idx, turn);
         curr_state.apply_move(&turn.action);
         curr_state.display_board();
@@ -121,8 +121,8 @@ fn play_mcts_vs_random() -> Game {
     shuffled_agents.shuffle(&mut thread_rng());
     let (player1, player2) = (shuffled_agents[0].clone(), shuffled_agents[1].clone());
     
-    let mut game: Game = Game::new(player1.clone(), player2.clone(), initial_state.clone());
-    let mut current_state = initial_state.clone();
+    let mut game: Game = Game::new(player1.clone(), player2.clone(), initial_state);
+    let mut current_state = initial_state;
     let mut curr_player = player1.clone();
     let mcts_idx = if curr_player == Agent::Mcts {-1} else {1};
 
@@ -136,7 +136,7 @@ fn play_mcts_vs_random() -> Game {
 
         // Select action depending on the current agent
         let action: Vec<(i8, i8)> = match curr_player {
-            Agent::Mcts => mct_search(current_state.clone(), mcts_idx),
+            Agent::Mcts => mct_search(current_state, mcts_idx),
             Agent::Random => random_play(&current_state),
             Agent::None => unreachable!(),
         };

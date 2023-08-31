@@ -1,7 +1,8 @@
 use arrayvec::ArrayVec;
+use indicatif::ProgressIterator;
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
-use std::{cmp::min, slice::Iter};
+use std::{cmp::min, collections::HashMap};
 use tch::{
     nn::{self, Adam, Optimizer, OptimizerConfig},
     Tensor,
@@ -117,11 +118,11 @@ impl AlphaZero {
     }
 
     pub fn self_play_parallel(&self) -> Vec<MemoryFragment> {
-        let mut states: Vec<(usize, Backgammon)> = (0..N_SELF_PLAY_BATCHES).map(|idx| {
+        let mut states: HashMap<usize, (usize, Backgammon)> = (0..N_SELF_PLAY_BATCHES).map(|idx| {
             let mut bg = Backgammon::new();
             bg.roll_die();
-            (idx, bg)
-        }).collect_vec();
+            (idx, (idx, bg))
+        }).collect();
 
         let mut memories: ArrayVec<Vec<MemoryFragment>, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter((0..N_SELF_PLAY_BATCHES).map(|_| Vec::new()));
         let mut all_memories = vec![];
@@ -129,15 +130,19 @@ impl AlphaZero {
         while !states.is_empty() {
             // Mutates store, does not return anything
             let mut store = NodeStore::new();
-            let state_to_process = states.iter().map(|tup| tup.1).collect_vec();
+            let state_to_process = states.iter().map(|tup| tup.1.1).collect_vec();
             // Fill store with games
             alpha_mcts_parallel(&mut store, &state_to_process, &self.model);
 
-            for (processed_idx, (init_idx, state)) in states.iter_mut().enumerate() {
+            // processed idx: the index of the state in remaining processed states
+            // init_idx: the index of the state in the initial creation of the states vector
+            // state: the backgammon state itself
+            // states_to_remove: list of finished states to remove after each iteration
+            let mut states_to_remove = vec![];
+            for (processed_idx, (init_idx, state)) in states.values_mut().enumerate() {
                 let mut probs = match get_prob_tensor(state, processed_idx, &store) {
                     Some(pi) => pi,
                     None => {
-                        println!("No valid moves!");
                         state.skip_turn();
                         continue;
                     }
@@ -157,7 +162,6 @@ impl AlphaZero {
 
                 // Decode and play selected action
                 let decoded_action = state.decode(selected_action as u32);
-                println!("Played action: {:?}\n\n", decoded_action);
                 state.apply_move(&decoded_action);
 
                 if let Some(winner) = Backgammon::check_win_without_player(state.board) {
@@ -169,7 +173,12 @@ impl AlphaZero {
                             state: mem.state.shallow_clone(),
                         });
                     all_memories.extend(curr_memory);
+                    states_to_remove.push(*init_idx);
                 }
+            }
+            // remove finished states
+            for state_idx in states_to_remove {
+                states.remove(&state_idx);
             }
         }
         all_memories
@@ -210,11 +219,6 @@ impl AlphaZero {
             let (out_policy, out_value) = self.model.forward_t(&state_tensor, true);
             let out_policy = out_policy.squeeze();
 
-            println!("ps_tensor size: {:?}", ps_tensor.size());
-            println!("out_policy size: {:?}", out_policy.size());
-            println!("out_value size: {:?}", out_value.size());
-            println!("outcome_tensor size: {:?}", outcome_tensor.size());
-
             // Calculate loss
             let policy_loss = out_policy.to_device(*DEVICE).cross_entropy_loss::<Tensor>(
                 &ps_tensor,
@@ -242,6 +246,33 @@ impl AlphaZero {
                 memory.append(&mut res);
             }
             for _ in 0..self.config.num_epochs {
+                self.train(&mut memory);
+            }
+            let model_save_path = format!("./models/model_{}.pt", i);
+            match self.model.vs.save(&model_save_path) {
+                Ok(_) => println!(
+                    "Iteration {} saved successfully, path: {}",
+                    i, &model_save_path
+                ),
+                Err(e) => println!(
+                    "Unable to save model: {}, caught error: {}",
+                    &model_save_path, e
+                ),
+            }
+        }
+    }
+
+    pub fn learn_parallel(&mut self) {
+        let pb_learn_iter = (0..self.config.learn_iterations).progress().with_message("Learning");
+        for i in pb_learn_iter {
+            let pb_self_iter = (0..self.config.self_play_iterations).progress().with_message("Self-Play");
+            let mut memory: Vec<MemoryFragment> = vec![];
+            for _ in pb_self_iter {
+                let mut res = self.self_play_parallel();
+                memory.append(&mut res);
+            }
+            let pb_epoch_iter = (0..self.config.num_epochs).progress().with_message("Epochs");
+            for _ in pb_epoch_iter {
                 self.train(&mut memory);
             }
             let model_save_path = format!("./models/model_{}.pt", i);

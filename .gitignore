@@ -29,4 +29,5 @@ Cargo.lock
 /games
 
 # ignore models
-/models
+/models/*
+!/models/.gitkeep

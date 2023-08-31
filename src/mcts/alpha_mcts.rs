@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashSet};
 
 use arrayvec::ArrayVec;
 use indicatif::ProgressIterator;
@@ -61,7 +61,7 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
     }
     let mut store = NodeStore::new();
     let roll = state.roll;
-    let root_node_idx = store.add_node(state.clone(), None, None, Some(roll), 0.0);
+    let root_node_idx = store.add_node(*state, None, None, Some(roll), 0.0);
     
     apply_dirichlet_to_root(root_node_idx, &mut store, net, state);
     
@@ -135,7 +135,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
                 - selected_nodes[i] refers to the node that was last selected for game[i]
 
     */
-    let mut games: ArrayVec<usize, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter(0..N_SELF_PLAY_BATCHES);
+    let mut games: HashSet<usize> = HashSet::from_iter(0..N_SELF_PLAY_BATCHES);
     let mut selected_nodes: ArrayVec<Node, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter((0..N_SELF_PLAY_BATCHES).map(|_| Node::empty()));
 
     let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS Paralel");
@@ -155,7 +155,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
         }
         // Remove finished games
         for game in ended_games {
-            games.remove(game);
+            games.remove(&game);
         }
         // No games to search, end search
         if games.is_empty() {

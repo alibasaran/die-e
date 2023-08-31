@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use die_e::{mcts::{node::Node, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, backgammon::Backgammon, alphazero::nnet::ResNet, constants::N_SELF_PLAY_BATCHES};
+use die_e::{mcts::{alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, backgammon::Backgammon, alphazero::nnet::ResNet, constants::N_SELF_PLAY_BATCHES};
 
 fn bench(c: &mut Criterion) { 
     let mut group = c.benchmark_group("alpha_mcts_parallel");   
@@ -10,7 +10,7 @@ fn bench(c: &mut Criterion) {
         bg.roll_die();
         let states = vec![bg; N_SELF_PLAY_BATCHES];
         let net = ResNet::default();
-        alpha_mcts_parallel(&mut store, states, -1, &net, false);
+        alpha_mcts_parallel(&mut store, &states, &net);
     }));
     group.finish()
 }
