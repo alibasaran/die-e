@@ -1,14 +1,15 @@
-use itertools::multiunzip;
+use arrayvec::ArrayVec;
+use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
-use std::cmp::min;
+use std::{cmp::min, slice::Iter};
 use tch::{
-    nn::{self, Optimizer, OptimizerConfig, Adam},
+    nn::{self, Adam, Optimizer, OptimizerConfig},
     Tensor,
 };
 
 use super::nnet::ResNet;
 
-use crate::{backgammon::Backgammon, constants::DEVICE, mcts::alpha_mcts::alpha_mcts};
+use crate::{backgammon::Backgammon, constants::{DEVICE, DEFAULT_TYPE, N_SELF_PLAY_BATCHES}, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor}};
 
 pub struct AlphaZeroConfig {
     pub temperature: f64,
@@ -34,13 +35,25 @@ pub struct MemoryFragment {
 torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False, *, foreach=None, maximize=False, capturable=False, differentiable=False, fused=None)
 */
 
+// struct Game {
+//     idx: usize,
+//     state: Backgammon,
+// }
+
+// impl Game {
+//     fn new(idx: usize, state: Backgammon) -> Self {
+//         Game {
+//             idx,
+//             state
+//         }
+//     }
+// }
+
 impl AlphaZero {
     pub fn new(config: AlphaZeroConfig) -> Self {
         let vs = nn::VarStore::new(*DEVICE);
-        let opt = Adam::default()
-            .wd(1e-4)
-            .build(&vs, 1e-3).unwrap();
-            
+        let opt = Adam::default().wd(1e-4).build(&vs, 1e-3).unwrap();
+
         AlphaZero {
             model: ResNet::new(vs),
             optimizer: opt,
@@ -103,6 +116,65 @@ impl AlphaZero {
         }
     }
 
+    pub fn self_play_parallel(&self) -> Vec<MemoryFragment> {
+        let mut states: Vec<(usize, Backgammon)> = (0..N_SELF_PLAY_BATCHES).map(|idx| {
+            let mut bg = Backgammon::new();
+            bg.roll_die();
+            (idx, bg)
+        }).collect_vec();
+
+        let mut memories: ArrayVec<Vec<MemoryFragment>, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter((0..N_SELF_PLAY_BATCHES).map(|_| Vec::new()));
+        let mut all_memories = vec![];
+        
+        while !states.is_empty() {
+            // Mutates store, does not return anything
+            let mut store = NodeStore::new();
+            let state_to_process = states.iter().map(|tup| tup.1).collect_vec();
+            // Fill store with games
+            alpha_mcts_parallel(&mut store, &state_to_process, &self.model);
+
+            for (processed_idx, (init_idx, state)) in states.iter_mut().enumerate() {
+                let mut probs = match get_prob_tensor(state, processed_idx, &store) {
+                    Some(pi) => pi,
+                    None => {
+                        println!("No valid moves!");
+                        state.skip_turn();
+                        continue;
+                    }
+                };
+
+                // Apply temperature to pi
+                let temperatured_pi = probs.pow_(1.0 / self.config.temperature);
+                // Select an action from probabilities
+                let selected_action = self.weighted_select_tensor_idx(&temperatured_pi);
+
+                // Save results to memory
+                memories[*init_idx].push(MemoryFragment {
+                    outcome: state.player,
+                    ps: probs,
+                    state: state.as_tensor(),
+                });
+
+                // Decode and play selected action
+                let decoded_action = state.decode(selected_action as u32);
+                println!("Played action: {:?}\n\n", decoded_action);
+                state.apply_move(&decoded_action);
+
+                if let Some(winner) = Backgammon::check_win_without_player(state.board) {
+                    let curr_memory =  memories[*init_idx]
+                        .iter()
+                        .map(|mem| MemoryFragment {
+                            outcome: if mem.outcome == winner { 1 } else { -1 },
+                            ps: mem.ps.shallow_clone(),
+                            state: mem.state.shallow_clone(),
+                        });
+                    all_memories.extend(curr_memory);
+                }
+            }
+        }
+        all_memories
+    }
+
     fn train(&mut self, memory: &mut Vec<MemoryFragment>) {
         let mut rng = thread_rng();
         memory.shuffle(&mut rng);
@@ -120,17 +192,17 @@ impl AlphaZero {
             // Format tensors to process
             let outcome_tensor = Tensor::from_slice(&outcomes).unsqueeze(1).to_device_(
                 *DEVICE,
-                tch::Kind::Float,
+                DEFAULT_TYPE,
                 false,
                 false,
             );
 
             let ps_tensor =
-                Tensor::stack(&ps_values, 0).to_device_(*DEVICE, tch::Kind::Float, false, false);
+                Tensor::stack(&ps_values, 0).to_device_(*DEVICE, DEFAULT_TYPE, false, false);
 
             let state_tensor = Tensor::stack(&states, 0).squeeze().to_device_(
                 *DEVICE,
-                tch::Kind::Float,
+                DEFAULT_TYPE,
                 false,
                 false,
             );

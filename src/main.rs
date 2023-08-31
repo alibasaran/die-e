@@ -16,5 +16,6 @@ fn main() {
     bg.roll_die();
     let states = vec![bg; N_SELF_PLAY_BATCHES];
     let net = ResNet::default();
-    alpha_mcts_parallel(&mut store, states, -1, &net);
+    alpha_mcts_parallel(&mut store, &states, &net);
+    store.pretty_print(0, 1)
 }

@@ -5,7 +5,7 @@ use tch::Tensor;
 
 pub mod encoding;
 
-use crate::constants::DEVICE;
+use crate::constants::{DEVICE, DEFAULT_TYPE};
 
 // (the board itself, pieces_hit, pieces_collected)
 pub type Board = ([i8; 24], (u8, u8), (u8, u8));
@@ -18,7 +18,6 @@ pub enum Player {
     ONE = -1,
     TWO = 1,
 }
-
 
 #[derive(Debug)]
 pub struct ActionNode {
@@ -43,7 +42,6 @@ impl PartialEq for ActionNode {
 impl ActionNode {
     #[cfg(not(tarpaulin_include))]
     fn format_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
-
         let node_prefix = if is_last { "└── " } else { "├── " };
         let child_prefix = if is_last { "    " } else { "│   " };
 
@@ -116,11 +114,17 @@ impl Backgammon {
         }
     }
 
+    pub fn skip_turn(&mut self) {
+        self.is_second_play = false;
+        self.player *= -1;
+        self.roll_die();
+    }
+
     pub fn as_tensor(&self) -> Tensor {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
         let board = self.board;
-        let full_options = (tch::Kind::Float, *DEVICE);
+        let full_options = (DEFAULT_TYPE, *DEVICE);
 
         let board_tensor = Tensor::from_slice(&board.0)
             .to_device(*DEVICE)
@@ -128,24 +132,30 @@ impl Backgammon {
         let player_tensor = Tensor::full(24, self.player as i64, full_options).view([4, 6, 1]);
         let hit_tensor = Tensor::cat(
             &[
-                Tensor::full(12, board.1.0 as i64, full_options),
-                Tensor::full(12, board.1.1 as i64, full_options),
-            ], 0
-        ).view([4, 6, 1]);
-        
+                Tensor::full(12, board.1 .0 as i64, full_options),
+                Tensor::full(12, board.1 .1 as i64, full_options),
+            ],
+            0,
+        )
+        .view([4, 6, 1]);
+
         let collect_tensor = Tensor::cat(
             &[
-                Tensor::full(12, board.2.0 as i64, full_options),
-                Tensor::full(12, board.2.1 as i64, full_options),
-            ], 0
-        ).view([4, 6, 1]);
+                Tensor::full(12, board.2 .0 as i64, full_options),
+                Tensor::full(12, board.2 .1 as i64, full_options),
+            ],
+            0,
+        )
+        .view([4, 6, 1]);
 
         let roll_tensor = Tensor::cat(
             &[
                 Tensor::full(12, self.roll.0 as i64, full_options),
                 Tensor::full(12, self.roll.1 as i64, full_options),
-            ], 0
-        ).view([4, 6, 1]);
+            ],
+            0,
+        )
+        .view([4, 6, 1]);
 
         let second_play_tensor = if self.is_second_play {
             Tensor::full(24, 1, full_options).view([4, 6, 1])
@@ -153,9 +163,18 @@ impl Backgammon {
             Tensor::full(24, 0, full_options).view([4, 6, 1])
         };
 
-        Tensor::stack(&[
-            board_tensor, player_tensor, hit_tensor, collect_tensor, roll_tensor, second_play_tensor
-        ], 2).permute([3, 2, 0, 1])
+        Tensor::stack(
+            &[
+                board_tensor,
+                player_tensor,
+                hit_tensor,
+                collect_tensor,
+                roll_tensor,
+                second_play_tensor,
+            ],
+            2,
+        )
+        .permute([3, 2, 0, 1])
     }
 
     pub fn display_board(&self) {

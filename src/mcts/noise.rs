@@ -2,14 +2,16 @@ use rand::thread_rng;
 use rand_distr::{Dirichlet, Distribution};
 use tch::Tensor;
 
-use crate::constants::DEVICE;
+use crate::constants::{DEVICE, DEFAULT_TYPE};
 
 use super::{node::Node, node_store::NodeStore};
 
-
 impl Node {
     pub fn apply_dirichlet(&self, alpha: f32, eps: f32, store: &mut NodeStore) {
-        assert!(self.visits > 0., "unable to apply dirichlet, node has no visits!");
+        assert!(
+            self.visits > 0.,
+            "unable to apply dirichlet, node has no visits!"
+        );
         let dirichlet = Dirichlet::new(&vec![alpha; self.children.len()]).unwrap();
         let sample = dirichlet.sample(&mut thread_rng());
         for (child_idx, noise) in self.children.iter().zip(sample) {
@@ -26,7 +28,7 @@ pub fn apply_dirichlet(tensor: &Tensor, alpha: f32, eps: f32) -> Tensor {
     let n_policies = tensor.size()[1] as usize;
     let dirichlet = Dirichlet::new(&vec![alpha; n_policies]).unwrap();
     let diriclet_tensor = Tensor::from_slice(&dirichlet.sample(&mut thread_rng()))
-        .to_device_(*DEVICE, tch::Kind::Float, false, false)
+        .to_device_(*DEVICE, DEFAULT_TYPE, false, false)
         .unsqueeze(0);
     let sf_tensor = tensor.softmax(1, None);
     (1. - eps) * sf_tensor + eps * diriclet_tensor

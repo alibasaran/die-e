@@ -88,19 +88,18 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor
 
         backpropagate(idx, value, &mut store);
     }
-    get_prob_tensor(state, root_node_idx, &store, player as i8)
+    get_prob_tensor(state, root_node_idx, &store)
 }
 
 
 /*
     Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
 */
-pub fn alpha_mcts_parallel(store: &mut NodeStore, states: Vec<Backgammon>, player: i8, net: &ResNet) {
+pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &Vec<Backgammon>, net: &ResNet) {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
     
-    let player = player as i64;
     // Convert all states a tensor
     let states_vec = states.iter().map(|state| state.as_tensor()).collect_vec();
     let states_tensor = Tensor::stack(

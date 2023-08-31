@@ -4,27 +4,24 @@ use rand::seq::SliceRandom;
 use tch::Tensor;
 
 use crate::{
-    
-    backgammon::{Actions, Backgammon}, constants::{DEVICE, ACTION_SPACE_SIZE},
+    backgammon::{Actions, Backgammon},
+    constants::{ACTION_SPACE_SIZE, DEVICE, DEFAULT_TYPE},
 };
-
-
 
 use super::{node::Node, node_store::NodeStore};
 
 pub fn get_prob_tensor(
     state: &Backgammon,
     root_node_idx: usize,
-    store: &NodeStore,
-    player: i8,
+    store: &NodeStore
 ) -> Option<Tensor> {
-    let result = Tensor::full(ACTION_SPACE_SIZE, 0, (tch::Kind::Float, *DEVICE));
-    let mut idxs: Vec<i64> = vec![];
-    let mut visits: Vec<f32> = vec![];
     let children = store.get_node(root_node_idx).children;
     if children.is_empty() {
         return None;
     }
+    let result = Tensor::full(ACTION_SPACE_SIZE, 0, (DEFAULT_TYPE, *DEVICE));
+    let mut idxs: Vec<i64> = vec![];
+    let mut visits: Vec<f32> = vec![];
     for child in children {
         let child_node = store.get_node(child);
         let encoded_action = state.encode(child_node.action_taken.unwrap()) as i64;
@@ -34,7 +31,7 @@ pub fn get_prob_tensor(
     let visits_tensor = Tensor::from_slice(&visits).to_device(*DEVICE);
     let indices_tensor = Tensor::from_slice(&idxs).to_device(*DEVICE);
     let probs = result.index_put(&[Some(indices_tensor)], &visits_tensor, false);
-    let prob_sum = probs.sum(Some(tch::Kind::Float));
+    let prob_sum = probs.sum(Some(DEFAULT_TYPE));
     Some(probs.div(prob_sum))
 }
 
