@@ -51,7 +51,7 @@ pub fn apply_dirichlet_to_root(root_idx: usize, store: &mut NodeStore, net: &Res
     store.set_node(&root_node)
 }
 
-pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor> {
+pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     
@@ -63,7 +63,6 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor
     let roll = state.roll;
     let root_node_idx = store.add_node(state.clone(), None, None, Some(roll), 0.0);
     
-    let player = player as i64;
     apply_dirichlet_to_root(root_node_idx, &mut store, net, state);
     
     let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS");
@@ -95,7 +94,7 @@ pub fn alpha_mcts(state: &Backgammon, player: i8, net: &ResNet) -> Option<Tensor
 /*
     Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
 */
-pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &Vec<Backgammon>, net: &ResNet) {
+pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet) {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
