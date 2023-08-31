@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt, vec};
 use tch::Tensor;
 
+pub mod encoding;
+
 use crate::constants::DEVICE;
 
 // (the board itself, pieces_hit, pieces_collected)

@@ -4,7 +4,7 @@ use rand::seq::SliceRandom;
 use tch::Tensor;
 
 use crate::{
-    alphazero::encoding::encode,
+    
     backgammon::{Actions, Backgammon}, constants::{DEVICE, ACTION_SPACE_SIZE},
 };
 
@@ -27,7 +27,7 @@ pub fn get_prob_tensor(
     }
     for child in children {
         let child_node = store.get_node(child);
-        let encoded_action = encode(child_node.action_taken.unwrap(), state.roll, player) as i64;
+        let encoded_action = state.encode(child_node.action_taken.unwrap()) as i64;
         idxs.push(encoded_action);
         visits.push(child_node.visits)
     }
@@ -42,7 +42,7 @@ pub fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {
     let mut values: Vec<f32> = vec![0.0; 1352];
     let mut encoded_values: Vec<usize> = Vec::with_capacity(node.expandable_moves.len());
     for action in &node.expandable_moves {
-        let encoded_value = encode(action.clone(), node.state.roll, node.state.player);
+        let encoded_value = node.state.encode(action.clone());
         encoded_values.push(encoded_value as usize);
         values[encoded_value as usize] = policy.double_value(&[encoded_value as i64]) as f32;
     }

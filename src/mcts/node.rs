@@ -1,5 +1,4 @@
 use crate::MCTS_CONFIG;
-use crate::alphazero::encoding::encode;
 use crate::backgammon::{Actions, Backgammon};
 use rand::{seq::SliceRandom, Rng};
 use std::ops::Div;
@@ -153,7 +152,7 @@ impl Node {
     pub fn alpha_expand(&mut self, store: &mut NodeStore, policy: Vec<f32>) {
         for action in self.expandable_moves.iter() {
             let next_state = Backgammon::get_next_state(self.state.board, action, self.state.player);
-            let encoded_value = encode(action.clone(), self.state.roll, self.state.player);
+            let encoded_value = self.state.encode(action.clone());
             let value = policy[encoded_value as usize];
 
             let child_idx = if self.state.roll.0 != self.state.roll.1 || self.state.is_second_play {

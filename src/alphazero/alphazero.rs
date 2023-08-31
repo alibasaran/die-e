@@ -6,7 +6,7 @@ use tch::{
     Tensor,
 };
 
-use super::{encoding::decode, nnet::ResNet};
+use super::nnet::ResNet;
 
 use crate::{backgammon::Backgammon, constants::DEVICE, mcts::alpha_mcts::alpha_mcts};
 
@@ -53,25 +53,21 @@ impl AlphaZero {
         let mut bg = Backgammon::new();
         bg.roll_die();
 
-        let mut player = -1;
         let mut memory: Vec<MemoryFragment> = vec![];
         // Is second play is a workaround for the case where doubles are rolled
         // Ex. when a player rolls 6,6 they can play 6 4-times
         // rather than the usual two that would be played on a normal role
         // So we feed doubles into the network as two back to back normal roles from the same player
-        let mut is_second_play = false;
-        let mut hard_lock = 0;
         loop {
             println!("Rolled die: {:?}", bg.roll);
-            println!("Player: {}", player);
+            println!("Player: {}", bg.player);
             bg.display_board();
             // Get probabilities from mcts
-            let mut pi = match alpha_mcts(&bg, player, &self.model) {
+            let mut pi = match alpha_mcts(&bg, bg.player, &self.model) {
                 Some(pi) => pi,
                 None => {
                     println!("No valid moves!");
-                    is_second_play = false;
-                    player *= -1;
+                    bg.player *= -1;
                     bg.roll_die();
                     continue;
                 }
@@ -84,13 +80,13 @@ impl AlphaZero {
 
             // Save results to memory
             memory.push(MemoryFragment {
-                outcome: player,
+                outcome: bg.player,
                 ps: pi,
                 state: bg.as_tensor(),
             });
 
             // Decode and play selected action
-            let decoded_action = decode(selected_action as u32, bg.roll, player);
+            let decoded_action = bg.decode(selected_action as u32);
             println!("Played action: {:?}\n\n", decoded_action);
             bg.apply_move(&decoded_action);
 
@@ -103,17 +99,7 @@ impl AlphaZero {
                         state: mem.state.shallow_clone(),
                     })
                     .collect();
-            } else if hard_lock == 10 {
-                return memory
-                    .iter()
-                    .map(|mem| MemoryFragment {
-                        outcome: if mem.outcome == 1 { 1 } else { -1 },
-                        ps: mem.ps.shallow_clone(),
-                        state: mem.state.shallow_clone(),
-                    })
-                    .collect();
             }
-            hard_lock += 1;
         }
     }
 
