@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::backgammon::{Backgammon, Actions};
 
 use super::node::Node;
@@ -5,6 +7,12 @@ use super::node::Node;
 #[derive(Clone)]
 pub struct NodeStore {
     nodes: Vec<Node>,
+}
+
+impl fmt::Display for NodeStore {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "NodeStore<size={}>", self.nodes.len())
+    }
 }
 
 impl NodeStore {
@@ -35,7 +43,10 @@ impl NodeStore {
     }
 
     pub fn get_node(&self, idx: usize) -> Node {
-        self.nodes[idx].clone()
+        match self.nodes.get(idx) {
+            None => { self.pretty_print(0, 0); panic!("there is no node at idx: {}, {}", idx, self) }
+            Some(node) => node.clone()
+        }
     }
 
     pub fn get_node_as_mut(&mut self, idx: usize) -> &mut Node {

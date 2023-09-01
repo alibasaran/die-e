@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, N_SELF_PLAY_BATCHES}, mcts::noise::apply_dirichlet, MCTS_CONFIG};
+use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON}, mcts::noise::apply_dirichlet, MCTS_CONFIG};
 
 use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
@@ -104,7 +104,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
     let states_tensor = Tensor::stack(
         &states_vec,
         0
-    ).squeeze();
+    ).squeeze_dim(1);
     // Get policy tensor
     let policy = net.forward_policy(&states_tensor, false);
     // Apply dirichlet to root policy tensor
@@ -135,57 +135,55 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
                 - selected_nodes[i] refers to the node that was last selected for game[i]
 
     */
-    let mut games: HashSet<usize> = HashSet::from_iter(0..N_SELF_PLAY_BATCHES);
-    let mut selected_nodes: ArrayVec<Node, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter((0..N_SELF_PLAY_BATCHES).map(|_| Node::empty()));
+    let mut games: HashSet<usize> = HashSet::from_iter(0..states.len());
+    let mut selected_nodes_idxs = vec![0; states.len()];
 
     let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS Paralel");
-    'iterloop: for _ in pb_iter {
+    for _ in pb_iter {
         let mut ended_games = vec![];
-        for (root_idx, game_idx) in games.iter().enumerate() {
-            let idx = alpha_select_leaf_node(root_idx, store);
+        for game_idx in games.iter() {
+            let idx = alpha_select_leaf_node(*game_idx, store);
             let selected_node = store.get_node(idx);
     
             if selected_node.is_terminal() {
-                ended_games.push(root_idx);
                 let value = ((Backgammon::check_win_without_player(selected_node.state.board).unwrap() + 1) / 2) as f32;
                 backpropagate(idx, value, store);
+                ended_games.push(*game_idx);
             } else {
-                selected_nodes[*game_idx] = selected_node
+                selected_nodes_idxs[*game_idx] = selected_node.idx
             }
         }
         // Remove finished games
-        for game in ended_games {
-            games.remove(&game);
+        for game_to_remove in ended_games {
+            games.remove(&game_to_remove);
         }
         // No games to search, end search
         if games.is_empty() {
-            break 'iterloop;
+            return
         }
         
         // Convert ongoing (not terminal) games into a tensor
         let selected_states_vec = games.iter().map(|idx| {
-            let node = &selected_nodes[*idx];
+            let node = store.get_node(selected_nodes_idxs[*idx]);
             node.state.as_tensor()
         }).collect_vec();
-        let selected_states_tensor = Tensor::stack(
+        let mut selected_states_tensor = Tensor::stack(
             &selected_states_vec,
             0
-        ).squeeze();
+        ).squeeze_dim(1);
         
         // Calculate policies
         let (policy, eval) = net.forward_t(&selected_states_tensor, false);
         
         // Expand and backprop selected nodes with their respective calculated policies and evals
         for (i, game) in games.iter().enumerate() {
-            let i = i as i64;
-            let selected_node = &selected_nodes[*game];
-            let mut node_from_store = store.get_node(selected_node.idx);
+            let mut node = store.get_node(selected_nodes_idxs[*game]);
 
-            let (policy_i, eval_i) = (policy.get(i), eval.get(i));
-            let policy_vec = turn_policy_to_probs(&policy_i, selected_node);
-            node_from_store.alpha_expand(store, policy_vec);
+            let (policy_i, eval_i) = (policy.get(i as i64), eval.get(i as i64));
+            let policy_vec = turn_policy_to_probs(&policy_i, &node);
+            node.alpha_expand(store, policy_vec);
             let value = eval_i.double_value(&[0]) as f32;
-            backpropagate(selected_node.idx, value, store)
+            backpropagate(node.idx, value, store)
         }
     }
 }

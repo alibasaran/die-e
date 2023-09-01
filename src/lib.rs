@@ -12,12 +12,13 @@ Constants used through all modules
 */
 pub mod constants {
     use tch::Device;
-
-    pub const DIRICHLET_ALPHA: f32 = 0.3;
+    
+    // https://jonathan-laurent.github.io/AlphaZero.jl/stable/reference/params/#AlphaZero.MctsParams
+    pub const DIRICHLET_ALPHA: f32 = 0.02;
     pub const DIRICHLET_EPSILON: f32 = 0.25;
 
     pub const ACTION_SPACE_SIZE: i64 = 1352;
-    pub const N_SELF_PLAY_BATCHES: usize = 10;
+    pub const N_SELF_PLAY_BATCHES: usize = 512;
 
     pub const DEFAULT_TYPE: tch::kind::Kind = tch::Kind::Float;
 
@@ -42,7 +43,7 @@ pub struct MctsConfig {
 }
 
 pub const MCTS_CONFIG: MctsConfig = MctsConfig {
-    iterations: 10,
+    iterations: 800,
     c: 1.0,
     // c: std::f32::consts::SQRT_2,
     simulate_round_limit: 100,

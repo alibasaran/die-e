@@ -20,7 +20,11 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LIBTORCH": "${workspaceFolder}/torch",
+                "DYLD_LIBRARY_PATH": "${workspaceFolder}/torch/lib",
+            }
         },
         {
             "type": "lldb",

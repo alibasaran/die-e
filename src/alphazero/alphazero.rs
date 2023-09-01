@@ -2,9 +2,9 @@ use arrayvec::ArrayVec;
 use indicatif::ProgressIterator;
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
-use std::{cmp::min, collections::HashMap};
+use std::{cmp::min, collections::{HashMap, HashSet}};
 use tch::{
-    nn::{self, Adam, Optimizer, OptimizerConfig},
+    nn::{self, Adam, Optimizer, OptimizerConfig, VarStore},
     Tensor,
 };
 
@@ -53,7 +53,7 @@ torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0
 impl AlphaZero {
     pub fn new(config: AlphaZeroConfig) -> Self {
         let vs = nn::VarStore::new(*DEVICE);
-        let opt = Adam::default().wd(1e-4).build(&vs, 1e-3).unwrap();
+        let opt = Adam::default().wd(1e-4).build(&vs, 1e-4).unwrap();
 
         AlphaZero {
             model: ResNet::new(vs),
@@ -209,7 +209,7 @@ impl AlphaZero {
             let ps_tensor =
                 Tensor::stack(&ps_values, 0).to_device_(*DEVICE, DEFAULT_TYPE, false, false);
 
-            let state_tensor = Tensor::stack(&states, 0).squeeze().to_device_(
+            let state_tensor = Tensor::stack(&states, 0).squeeze_dim(1).to_device_(
                 *DEVICE,
                 DEFAULT_TYPE,
                 false,
@@ -286,6 +286,43 @@ impl AlphaZero {
                     &model_save_path, e
                 ),
             }
+            self.play_vs_best_model();
+        }
+    }
+    
+    /**
+     * Plays against the current best model, saves if 55% better
+     */
+    pub fn play_vs_best_model(&self) {
+        let mut vs = VarStore::new(*DEVICE);
+        let best_model_path = "./models/best_model.pt";
+        match vs.load(best_model_path) {
+            Ok(_) => (),
+            Err(_) => match self.model.vs.save(best_model_path) {
+                Ok(_) => println!(
+                    "No best model was found, saved current model successfully, path: {}",
+                    &best_model_path
+                ),
+                Err(e) => println!(
+                    "Unable to save model: {}, caught error: {}",
+                    &best_model_path, e
+                ),
+            },
+        }
+        // Create vs copy because we move the vs into the ResNet
+        let mut vs_copy = VarStore::new(*DEVICE);
+        vs_copy.copy(&vs).unwrap();
+
+        let is_model_better = match self.model_vs_model(&self.model, &ResNet::new(vs)) {
+            Some(1) => true,
+            Some(2) | None => false,
+            Some(_) => unreachable!(),
+        };
+        if is_model_better {
+            match vs_copy.save(best_model_path) {
+                Ok(_) => println!("new model was better! saved"),
+                Err(_) => println!("new model was better! couldn't save :("),
+            }
         }
     }
 
@@ -298,4 +335,65 @@ impl AlphaZero {
         let dist = WeightedIndex::new(weights_iter).unwrap();
         dist.sample(&mut rng)
     }
+    
+    /**
+     * Playes 100 games, model1 vs model2
+     * Returns None if no model achieves 55% winrate
+     * Returns the model if a model does
+     */
+    pub fn model_vs_model(&self, model1: &ResNet, model2: &ResNet) -> Option<usize> {
+        let total_games = 100;
+        let mut model1_wins = 0;
+
+        for i in 0..total_games {
+            let mut bg = Backgammon::new();
+            // Make half of the games start with the second model
+            if i < 50 {
+                bg.skip_turn()
+            }
+            bg.roll_die();
+            
+            loop {
+                // Get probabilities from mcts
+                let mcts_res = if bg.player == -1 {
+                    alpha_mcts(&bg, model1)
+                } else {
+                    alpha_mcts(&bg, model2)
+                };
+                let mut pi = match mcts_res {
+                    Some(pi) => pi,
+                    None => {
+                        println!("No valid moves!");
+                        bg.player *= -1;
+                        bg.roll_die();
+                        continue;
+                    }
+                };
+    
+                // Apply temperature to pi
+                let temperatured_pi = pi.pow_(1.0 / self.config.temperature);
+                // Select an action from probabilities
+                let selected_action = self.weighted_select_tensor_idx(&temperatured_pi);
+    
+                // Decode and play selected action
+                let decoded_action = bg.decode(selected_action as u32);
+                bg.apply_move(&decoded_action);
+    
+                if let Some(winner) = Backgammon::check_win_without_player(bg.board) {
+                    if winner == -1 {
+                        model1_wins += 1;
+                    }
+                    break
+                }
+            }
+        }
+        if model1_wins >= 55 {
+            Some(1)
+        } else if model1_wins <= 45 {
+            Some(2)
+        } else {
+            None
+        }
+    }
 }
+
