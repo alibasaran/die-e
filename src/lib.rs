@@ -43,7 +43,7 @@ pub struct MctsConfig {
 }
 
 pub const MCTS_CONFIG: MctsConfig = MctsConfig {
-    iterations: 800,
+    iterations: 400,
     c: 1.0,
     // c: std::f32::consts::SQRT_2,
     simulate_round_limit: 100,

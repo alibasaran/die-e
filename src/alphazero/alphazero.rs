@@ -10,7 +10,7 @@ use tch::{
 
 use super::nnet::ResNet;
 
-use crate::{backgammon::Backgammon, constants::{DEVICE, DEFAULT_TYPE, N_SELF_PLAY_BATCHES}, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor}};
+use crate::{backgammon::Backgammon, constants::{DEVICE, DEFAULT_TYPE, N_SELF_PLAY_BATCHES}, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor}, MCTS_CONFIG};
 
 pub struct AlphaZeroConfig {
     pub temperature: f64,
@@ -124,9 +124,10 @@ impl AlphaZero {
             (idx, (idx, bg))
         }).collect();
 
-        let mut memories: ArrayVec<Vec<MemoryFragment>, N_SELF_PLAY_BATCHES> = ArrayVec::from_iter((0..N_SELF_PLAY_BATCHES).map(|_| Vec::new()));
+        let mut memories: [Vec<MemoryFragment>; N_SELF_PLAY_BATCHES] = std::array::from_fn(|_| vec![]);
         let mut all_memories = vec![];
         
+        let mut n_rounds = [0; N_SELF_PLAY_BATCHES];
         while !states.is_empty() {
             // Mutates store, does not return anything
             let mut store = NodeStore::new();
@@ -163,6 +164,21 @@ impl AlphaZero {
                 // Decode and play selected action
                 let decoded_action = state.decode(selected_action as u32);
                 state.apply_move(&decoded_action);
+
+                // Increment round
+                n_rounds[*init_idx] += 1;
+
+                if n_rounds[*init_idx] >= MCTS_CONFIG.simulate_round_limit {
+                    let curr_memory =  memories[*init_idx]
+                    .iter()
+                    .map(|mem| MemoryFragment {
+                        outcome: 0,
+                        ps: mem.ps.shallow_clone(),
+                        state: mem.state.shallow_clone(),
+                    });
+                    all_memories.extend(curr_memory);
+                    states_to_remove.push(*init_idx);
+                }
 
                 if let Some(winner) = Backgammon::check_win_without_player(state.board) {
                     let curr_memory =  memories[*init_idx]
