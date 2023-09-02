@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, collections::HashSet};
 
 use arrayvec::ArrayVec;
-use indicatif::ProgressIterator;
+use indicatif::{ProgressIterator, MultiProgress, ProgressBar};
 use itertools::Itertools;
 
 use tch::Tensor;
@@ -94,7 +94,7 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
 /*
     Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
 */
-pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet) {
+pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet, pb: Option<ProgressBar>) {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
@@ -138,8 +138,12 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
     let mut games: HashSet<usize> = HashSet::from_iter(0..states.len());
     let mut selected_nodes_idxs = vec![0; states.len()];
 
-    let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS Paralel");
-    for _ in pb_iter {
+    let pb = match pb {
+        Some(p) => p,
+        None => ProgressBar::new(MCTS_CONFIG.iterations as u64)
+    };
+
+    for _ in 0..MCTS_CONFIG.iterations {
         let mut ended_games = vec![];
         for game_idx in games.iter() {
             let idx = alpha_select_leaf_node(*game_idx, store);
@@ -185,5 +189,6 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
             let value = eval_i.double_value(&[0]) as f32;
             backpropagate(node.idx, value, store)
         }
+        pb.inc(1)
     }
 }

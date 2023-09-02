@@ -36,6 +36,7 @@ pub mod constants {
     }
 }
 
+#[derive(Debug)]
 pub struct MctsConfig {
     iterations: usize,
     c: f32,

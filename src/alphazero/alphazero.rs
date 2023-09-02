@@ -1,5 +1,5 @@
 use arrayvec::ArrayVec;
-use indicatif::ProgressIterator;
+use indicatif::{ProgressIterator, MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
 use std::{cmp::min, collections::{HashMap, HashSet}};
@@ -12,6 +12,7 @@ use super::nnet::ResNet;
 
 use crate::{backgammon::Backgammon, constants::{DEVICE, DEFAULT_TYPE, N_SELF_PLAY_BATCHES}, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor}, MCTS_CONFIG};
 
+#[derive(Debug)]
 pub struct AlphaZeroConfig {
     pub temperature: f64,
     pub learn_iterations: usize,
@@ -24,6 +25,7 @@ pub struct AlphaZero {
     model: ResNet,
     optimizer: Optimizer,
     config: AlphaZeroConfig,
+    pb: MultiProgress,
 }
 #[derive(Debug)]
 pub struct MemoryFragment {
@@ -55,10 +57,18 @@ impl AlphaZero {
         let vs = nn::VarStore::new(*DEVICE);
         let opt = Adam::default().wd(1e-4).build(&vs, 1e-4).unwrap();
 
+        println!("
+        AlphaZero initialized:
+        \n{:?}
+        \nMCTS Config:
+        \n{:?}
+        ", config, MCTS_CONFIG);
+
         AlphaZero {
             model: ResNet::new(vs),
             optimizer: opt,
             config,
+            pb: MultiProgress::new()
         }
     }
 
@@ -128,12 +138,31 @@ impl AlphaZero {
         let mut all_memories = vec![];
         
         let mut n_rounds = [0; N_SELF_PLAY_BATCHES];
+
+        let sty = ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
+        )
+        .unwrap()
+        .progress_chars("##-");
+
+        let self_play_pb = self.pb.add(ProgressBar::new(N_SELF_PLAY_BATCHES as u64));
+        self_play_pb.set_message(format!("Self play - {} batches", N_SELF_PLAY_BATCHES));
+        self_play_pb.set_style(sty.clone());
+
+        
         while !states.is_empty() {
+            self_play_pb.set_position((N_SELF_PLAY_BATCHES - states.len()) as u64);
             // Mutates store, does not return anything
             let mut store = NodeStore::new();
             let state_to_process = states.iter().map(|tup| tup.1.1).collect_vec();
+            let mcts_pb = self.pb.add(
+                ProgressBar::new(MCTS_CONFIG.iterations as u64)
+                    .with_style(sty.clone())
+                    .with_message("Alpha mcts parallel")
+                    .with_finish(indicatif::ProgressFinish::AndClear)
+            );
             // Fill store with games
-            alpha_mcts_parallel(&mut store, &state_to_process, &self.model);
+            alpha_mcts_parallel(&mut store, &state_to_process, &self.model, Some(mcts_pb));
 
             // processed idx: the index of the state in remaining processed states
             // init_idx: the index of the state in the initial creation of the states vector
@@ -279,17 +308,47 @@ impl AlphaZero {
     }
 
     pub fn learn_parallel(&mut self) {
-        let pb_learn_iter = (0..self.config.learn_iterations).progress().with_message("Learning");
-        for i in pb_learn_iter {
-            let pb_self_iter = (0..self.config.self_play_iterations).progress().with_message("Self-Play");
+        let sty = ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
+        )
+        .unwrap()
+        .progress_chars("##-");
+
+        let pb_learn = self.pb.add(
+            ProgressBar::new(self.config.learn_iterations as u64)
+                .with_message("Learn Parallel!")
+                .with_style(sty.clone())
+        );
+
+        let _ = self.pb.println("Starting learn parallel...");
+
+        for i in 0..self.config.learn_iterations {
+            // Get samples for training 
+            let pb_self_play = self.pb.add(
+                ProgressBar::new(self.config.self_play_iterations as u64)
+                    .with_message("Self play")
+                    .with_style(sty.clone())
+            );
+            
             let mut memory: Vec<MemoryFragment> = vec![];
-            for _ in pb_self_iter {
+            for i in 0..self.config.self_play_iterations {
+                pb_self_play.set_message(format!("iteration #{}", i + 1));
+                
                 let mut res = self.self_play_parallel();
                 memory.append(&mut res);
+                pb_self_play.inc(1);
             }
-            let pb_epoch_iter = (0..self.config.num_epochs).progress().with_message("Epochs");
-            for _ in pb_epoch_iter {
+            pb_self_play.finish_with_message("Self-play finished");
+
+            // Train
+            let pb_train = self.pb.add(
+                ProgressBar::new(self.config.num_epochs as u64)
+                    .with_message("Training")
+                    .with_style(sty.clone())
+            );
+            for _ in 0..self.config.num_epochs {
                 self.train(&mut memory);
+                pb_train.inc(1);
             }
             let model_save_path = format!("./models/model_{}.pt", i);
             match self.model.vs.save(&model_save_path) {
@@ -303,6 +362,8 @@ impl AlphaZero {
                 ),
             }
             self.play_vs_best_model();
+            pb_learn.inc(1);
+            self.pb.clear().unwrap();
         }
     }
     
@@ -315,14 +376,15 @@ impl AlphaZero {
         match vs.load(best_model_path) {
             Ok(_) => (),
             Err(_) => match self.model.vs.save(best_model_path) {
-                Ok(_) => println!(
+                Ok(_) => {
+                    self.pb.println(format!(
                     "No best model was found, saved current model successfully, path: {}",
                     &best_model_path
-                ),
-                Err(e) => println!(
+                )).unwrap(); return},
+                Err(e) => {self.pb.println(format!(
                     "Unable to save model: {}, caught error: {}",
                     &best_model_path, e
-                ),
+                )).unwrap(); return},
             },
         }
         // Create vs copy because we move the vs into the ResNet
@@ -336,8 +398,8 @@ impl AlphaZero {
         };
         if is_model_better {
             match vs_copy.save(best_model_path) {
-                Ok(_) => println!("new model was better! saved"),
-                Err(_) => println!("new model was better! couldn't save :("),
+                Ok(_) => self.pb.println("new model was better! saved").unwrap(),
+                Err(_) => self.pb.println("new model was better! couldn't save :(").unwrap(),
             }
         }
     }
@@ -379,7 +441,6 @@ impl AlphaZero {
                 let mut pi = match mcts_res {
                     Some(pi) => pi,
                     None => {
-                        println!("No valid moves!");
                         bg.player *= -1;
                         bg.roll_die();
                         continue;
