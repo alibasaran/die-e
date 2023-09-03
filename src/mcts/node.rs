@@ -1,6 +1,7 @@
 use crate::MCTS_CONFIG;
 use crate::backgammon::{Actions, Backgammon};
 use rand::{seq::SliceRandom, Rng};
+use tch::Tensor;
 use std::ops::Div;
 
 use super::node_store::NodeStore;
@@ -152,8 +153,36 @@ impl Node {
     pub fn alpha_expand(&mut self, store: &mut NodeStore, policy: Vec<f32>) {
         for action in self.expandable_moves.iter() {
             let next_state = Backgammon::get_next_state(self.state.board, action, self.state.player);
-            let encoded_value = self.state.encode(action.clone());
+            let encoded_value = self.state.encode(&action);
             let value = policy[encoded_value as usize];
+
+            let child_idx = if self.state.roll.0 != self.state.roll.1 || self.state.is_second_play {
+                store.add_node(
+                    Backgammon::init_with_fields(next_state, -self.state.player, false),
+                    Some(self.idx),
+                    Some(action.to_vec()),
+                    None,
+                    value,
+                )
+            } else {
+                store.add_node(
+                    Backgammon::init_with_fields(next_state, self.state.player, true),
+                    Some(self.idx),
+                    Some(action.to_vec()),
+                    Some(self.state.roll),
+                    value,
+                )
+            };
+            self.children.push(child_idx);
+        }
+        store.set_node(self);
+    }
+
+    pub fn alpha_expand_tensor(&mut self, store: &mut NodeStore, policy: Tensor) {
+        for action in self.expandable_moves.iter() {
+            let next_state = Backgammon::get_next_state(self.state.board, action, self.state.player);
+            let encoded_value = self.state.encode(action);
+            let value = policy.double_value(&[encoded_value.into()]) as f32;
 
             let child_idx = if self.state.roll.0 != self.state.roll.1 || self.state.is_second_play {
                 store.add_node(

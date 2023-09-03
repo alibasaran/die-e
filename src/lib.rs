@@ -24,14 +24,11 @@ pub mod constants {
 
     lazy_static! {
         pub static ref DEVICE: Device = {
-            // CPU improves the performance on short term if MPS warms up then it is faster
-            // During development setting it to  Device::Cpu
             if tch::utils::has_mps() {
-                Device::Mps
+                Device::Cpu
             } else {
                 Device::cuda_if_available()
             }
-            // Device::Cpu
         };
     }
 }

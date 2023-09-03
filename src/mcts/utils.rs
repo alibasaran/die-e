@@ -1,5 +1,6 @@
 use std::ops::Div;
 
+use itertools::Itertools;
 use rand::seq::SliceRandom;
 use tch::Tensor;
 
@@ -24,7 +25,7 @@ pub fn get_prob_tensor(
     let mut visits: Vec<f32> = vec![];
     for child in children {
         let child_node = store.get_node(child);
-        let encoded_action = state.encode(child_node.action_taken.unwrap()) as i64;
+        let encoded_action = state.encode(&child_node.action_taken.unwrap()) as i64;
         idxs.push(encoded_action);
         visits.push(child_node.visits)
     }
@@ -35,11 +36,23 @@ pub fn get_prob_tensor(
     Some(probs.div(prob_sum))
 }
 
+pub fn turn_policy_to_probs_tensor(policy: &Tensor, node: &Node) -> Tensor {
+    let mut result = Tensor::zeros_like(policy);
+    let indices = node.expandable_moves.iter().map(|m| {
+        node.state.encode(m) as i32
+    }).collect_vec();
+    let indices_tensor = vec![Some(Tensor::from_slice(&indices))];
+    let values_to_put = policy.index(&indices_tensor);
+    let _ = result.index_put_(&indices_tensor, &values_to_put, false);
+    let sum = result.sum(None);
+    result / sum
+}
+
 pub fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {
     let mut values: Vec<f32> = vec![0.0; 1352];
     let mut encoded_values: Vec<usize> = Vec::with_capacity(node.expandable_moves.len());
     for action in &node.expandable_moves {
-        let encoded_value = node.state.encode(action.clone());
+        let encoded_value = node.state.encode(action);
         encoded_values.push(encoded_value as usize);
         values[encoded_value as usize] = policy.double_value(&[encoded_value as i64]) as f32;
     }

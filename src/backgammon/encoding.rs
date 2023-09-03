@@ -3,7 +3,7 @@ use crate::backgammon::Actions;
 use super::Backgammon;
 
 impl Backgammon {
-    pub fn encode(&self, actions: Actions) -> u32 {
+    pub fn encode(&self, actions: &Actions) -> u32 {
         assert!(actions.len() <= 2, "encoding for actions > 2 is not yet implemented!");
     
         if actions.is_empty() {

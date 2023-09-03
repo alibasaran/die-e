@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::noise::apply_dirichlet, MCTS_CONFIG};
+use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::{noise::apply_dirichlet, utils::turn_policy_to_probs_tensor}, MCTS_CONFIG};
 
 use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
@@ -21,14 +21,22 @@ impl Default for TimeLogger {
     }
 }
 
+const LOCK_LOGGER: bool = true;
+
 impl TimeLogger {
     pub fn start(&mut self) {
+        if LOCK_LOGGER {
+            return;
+        }
         self.start_time = SystemTime::now();
         self.last_log = SystemTime::now();
-        println!("Started TimeLogger",)
+        println!("Started TimeLogger")
     }
 
     pub fn log(&mut self, msg: &str) {
+        if LOCK_LOGGER {
+            return;
+        }
         println!("{}: {} ms", msg, SystemTime::now().duration_since(self.last_log).unwrap().as_millis());
         self.last_log = SystemTime::now();
     }
@@ -148,13 +156,17 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
     timer.log("add roots");
 
     // Expand root node for each game state
+    // Move policy to CPU because alpha expand makes multiple double_value(idx) calls,
+    // Takes too long when tensors are in GPU
+    let policy_dir = policy_dir.to_device(tch::Device::Cpu);
     for (i, _) in states.iter().enumerate() {
         // Create root node for each game state
         let mut root = store.get_node(i);
+
         root.visits = 1.;
-        let prob_vec = turn_policy_to_probs(&policy_dir.get(i as i64), &root);
+        let prob_tensor = turn_policy_to_probs_tensor(&policy_dir.get(i as i64), &root);
         // Expand root
-        root.alpha_expand(store, prob_vec)
+        root.alpha_expand_tensor(store, prob_tensor);
     }
     timer.log("expand roots");
     
@@ -221,14 +233,16 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
         timer.log("Other forward_t");
         
         // Expand and backprop selected nodes with their respective calculated policies and evals
+        let eval = eval.to_device(tch::Device::Cpu);
+        let policy = policy.to_device(tch::Device::Cpu);
         for (i, game) in games.iter().enumerate() {
             let mut node = store.get_node(selected_nodes_idxs[*game]);
-
             let (policy_i, eval_i) = (policy.get(i as i64), eval.get(i as i64));
-            let policy_vec = turn_policy_to_probs(&policy_i, &node);
-            node.alpha_expand(store, policy_vec);
+            let prob_tensor = turn_policy_to_probs_tensor(&policy_i, &node);
+            // Expand root
+            node.alpha_expand_tensor(store, prob_tensor);
             let value = eval_i.double_value(&[0]) as f32;
-            backpropagate(node.idx, value, store)
+            backpropagate(node.idx, value, store);
         }
         timer.log("Expand all nodes");
         pb.inc(1)
