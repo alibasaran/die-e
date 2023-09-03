@@ -1,10 +1,8 @@
 use std::ops::Add;
 
-
-
 use tch::{
     nn::{self, VarStore},
-    Tensor,
+    Device, Tensor,
 };
 
 use crate::constants::DEVICE;
@@ -67,11 +65,17 @@ const POLICY_OUTPUT_SIZE: i64 = 1352; // arbitrary
 
 impl Default for ResNet {
     fn default() -> Self {
+        let vs = nn::VarStore::new(*DEVICE);
+        ResNet::new(vs)
+    }
+}
+
+impl ResNet {
+    pub fn new(vs: VarStore) -> Self {
         let conv_config = nn::ConvConfig {
             padding: 1,
             ..Default::default()
         };
-        let vs = nn::VarStore::new(*DEVICE);
         let root = vs.root();
 
         let init_block = nn::seq_t()
@@ -118,16 +122,12 @@ impl Default for ResNet {
             value_head,
         }
     }
-}
 
-impl ResNet {
-    pub fn new(vs: VarStore) -> Self {
-        ResNet {
-            vs,
-            ..Default::default()
-        }
+    pub fn with_device(device: Device) -> Self {
+        let vs = VarStore::new(device);
+        ResNet::new(vs)
     }
-
+    
     pub fn forward_t(&self, xs: &Tensor, train: bool) -> (Tensor, Tensor) {
         let new_x = xs
             .apply_t(&self.init_block, train)
@@ -141,8 +141,7 @@ impl ResNet {
     }
 
     pub fn forward_policy(&self, xs: &Tensor, train: bool) -> Tensor {
-        xs
-            .apply_t(&self.init_block, train)
+        xs.apply_t(&self.init_block, train)
             .apply_t(&self.res_layer, train)
             .apply_t(&self.policy_head, train)
     }

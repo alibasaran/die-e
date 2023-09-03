@@ -28,7 +28,7 @@ pub fn apply_dirichlet(tensor: &Tensor, alpha: f32, eps: f32) -> Tensor {
     let n_policies = tensor.size()[1] as usize;
     let dirichlet = Dirichlet::new(&vec![alpha; n_policies]).unwrap();
     let diriclet_tensor = Tensor::from_slice(&dirichlet.sample(&mut thread_rng()))
-        .to_device_(*DEVICE, DEFAULT_TYPE, false, false)
+        .to_device_(*DEVICE, DEFAULT_TYPE, true, false)
         .unsqueeze(0);
     let sf_tensor = tensor.softmax(1, None);
     (1. - eps) * sf_tensor + eps * diriclet_tensor

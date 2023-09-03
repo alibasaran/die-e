@@ -124,10 +124,9 @@ impl Backgammon {
         assert!(self.roll != (0, 0), "die has not been rolled!");
 
         let board = self.board;
-        let full_options = (DEFAULT_TYPE, *DEVICE);
+        let full_options = (DEFAULT_TYPE, tch::Device::Cpu);
 
         let board_tensor = Tensor::from_slice(&board.0)
-            .to_device(*DEVICE)
             .view([4, 6, 1]);
         let player_tensor = Tensor::full(24, self.player as i64, full_options).view([4, 6, 1]);
         let hit_tensor = Tensor::cat(

@@ -247,25 +247,19 @@ impl AlphaZero {
             let outcome_tensor = Tensor::from_slice(&outcomes).unsqueeze(1).to_device_(
                 *DEVICE,
                 DEFAULT_TYPE,
-                false,
+                true,
                 false,
             );
 
-            let ps_tensor =
-                Tensor::stack(&ps_values, 0).to_device_(*DEVICE, DEFAULT_TYPE, false, false);
+            let ps_tensor = Tensor::stack(&ps_values, 0);
 
-            let state_tensor = Tensor::stack(&states, 0).squeeze_dim(1).to_device_(
-                *DEVICE,
-                DEFAULT_TYPE,
-                false,
-                false,
-            );
+            let state_tensor = Tensor::stack(&states, 0).squeeze_dim(1);
 
             let (out_policy, out_value) = self.model.forward_t(&state_tensor, true);
             let out_policy = out_policy.squeeze();
 
             // Calculate loss
-            let policy_loss = out_policy.to_device(*DEVICE).cross_entropy_loss::<Tensor>(
+            let policy_loss = out_policy.cross_entropy_loss::<Tensor>(
                 &ps_tensor,
                 None,
                 tch::Reduction::Mean,
@@ -273,7 +267,6 @@ impl AlphaZero {
                 0.0,
             );
             let outcome_loss = out_value
-                .to_device(*DEVICE)
                 .mse_loss(&outcome_tensor, tch::Reduction::Mean);
             let loss = policy_loss + outcome_loss;
 

@@ -18,7 +18,7 @@ pub mod constants {
     pub const DIRICHLET_EPSILON: f32 = 0.25;
 
     pub const ACTION_SPACE_SIZE: i64 = 1352;
-    pub const N_SELF_PLAY_BATCHES: usize = 512;
+    pub const N_SELF_PLAY_BATCHES: usize = 2048;
 
     pub const DEFAULT_TYPE: tch::kind::Kind = tch::Kind::Float;
 
@@ -26,12 +26,12 @@ pub mod constants {
         pub static ref DEVICE: Device = {
             // CPU improves the performance on short term if MPS warms up then it is faster
             // During development setting it to  Device::Cpu
-            // if tch::utils::has_mps() {
-            //     Device::Mps
-            // } else {
-            //     Device::cuda_if_available()
-            // }
-            Device::Cpu
+            if tch::utils::has_mps() {
+                Device::Mps
+            } else {
+                Device::cuda_if_available()
+            }
+            // Device::Cpu
         };
     }
 }
