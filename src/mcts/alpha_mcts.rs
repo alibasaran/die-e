@@ -1,12 +1,13 @@
-use std::{cmp::Ordering, collections::HashSet, time::{SystemTime, UNIX_EPOCH}};
+use std::{cmp::Ordering, collections::HashSet, time::{SystemTime, UNIX_EPOCH}, sync::Mutex};
 
 use arrayvec::ArrayVec;
 use indicatif::{ProgressIterator, MultiProgress, ProgressBar};
 use itertools::Itertools;
 
+use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::{noise::apply_dirichlet, utils::turn_policy_to_probs_tensor}, MCTS_CONFIG};
+use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MCTS_CONFIG};
 
 use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
@@ -21,7 +22,7 @@ impl Default for TimeLogger {
     }
 }
 
-const LOCK_LOGGER: bool = true;
+const LOCK_LOGGER: bool = false;
 
 impl TimeLogger {
     pub fn start(&mut self) {
@@ -66,7 +67,7 @@ fn select_alpha(node_idx: usize, store: &NodeStore) -> Node {
 pub fn apply_dirichlet_to_root(root_idx: usize, store: &mut NodeStore, net: &ResNet, state: &Backgammon) {
     let mut root_node = store.get_node(root_idx);
     
-    let (mut policy, _) = net.forward_t(&state.as_tensor(), false);
+    let (mut policy, _) = net.forward_t(&state.as_tensor().to_device(*DEVICE), false);
 
     policy = policy.softmax(1, None)
         .permute([1, 0]);
@@ -106,7 +107,7 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
         let value: f32;
 
         if !selected_node.is_terminal() {
-            let (mut policy, eval) = net.forward_t(&selected_node.state.as_tensor(), false);
+            let (mut policy, eval) = net.forward_t(&selected_node.state.as_tensor().to_device(*DEVICE), false);
 
             policy = policy.softmax(1, None)
                 .permute([1, 0]);
@@ -127,48 +128,42 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
     Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
 */
 pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet, pb: Option<ProgressBar>) {
-    let mut timer = TimeLogger::default();
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
     
     // Convert all states a tensor
-    timer.start();
     let states_vec = states.iter().map(|state| state.as_tensor()).collect_vec();
     let states_tensor = Tensor::stack(
         &states_vec,
         0
     ).squeeze_dim(1).to_device(*DEVICE);
-    timer.log("Inital states conversion");
 
     // Get policy tensor
     let policy = net.forward_policy(&states_tensor, false);
-    timer.log("forward_policy");
 
     // Apply dirichlet to root policy tensor
     let policy_dir = apply_dirichlet(&policy, DIRICHLET_ALPHA, DIRICHLET_EPSILON);
-    timer.log("apply_dirichlet");
 
     // Create root node for each game state
     for (_, state) in states.iter().enumerate() {
         store.add_node(*state, None, None, Some(state.roll), 0.0);
     }
-    timer.log("add roots");
 
     // Expand root node for each game state
     // Move policy to CPU because alpha expand makes multiple double_value(idx) calls,
     // Takes too long when tensors are in GPU
-    let policy_dir = policy_dir.to_device(tch::Device::Cpu);
-    for (i, _) in states.iter().enumerate() {
+    let prob_tensor = turn_policy_to_probs_tensor_parallel(store, (0..states.len()).collect_vec(), &policy_dir)
+        .to_device(tch::Device::Cpu);
+    for i in 0..states.len() {
         // Create root node for each game state
         let mut root = store.get_node(i);
 
         root.visits = 1.;
-        let prob_tensor = turn_policy_to_probs_tensor(&policy_dir.get(i as i64), &root);
+        // let prob_tensor = turn_policy_to_probs_tensor(&policy_dir.get(i as i64), &root);
         // Expand root
-        root.alpha_expand_tensor(store, prob_tensor);
+        root.alpha_expand_tensor(store, &prob_tensor.get(i as i64));
     }
-    timer.log("expand roots");
     
     /*
         Create two vectors:
@@ -188,7 +183,6 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
         None => ProgressBar::new(MCTS_CONFIG.iterations as u64)
     };
 
-    timer.log("iteration start roots");
     for _ in 0..MCTS_CONFIG.iterations {
         let mut ended_games = vec![];
         for game_idx in games.iter() {
@@ -203,14 +197,11 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
                 selected_nodes_idxs[*game_idx] = selected_node.idx
             }
         }
-        timer.log("Select leaf per game");
-
 
         // Remove finished games
         for game_to_remove in ended_games {
             games.remove(&game_to_remove);
         }
-        timer.log("Remove games");
 
         // No games to search, end search
         if games.is_empty() {
@@ -226,11 +217,9 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
             &selected_states_vec,
             0
         ).squeeze_dim(1).to_device(*DEVICE);
-        timer.log("Select nodes and convert to states stack");
 
         // Calculate policies
         let (policy, eval) = net.forward_t(&selected_states_tensor, false);
-        timer.log("Other forward_t");
         
         // Expand and backprop selected nodes with their respective calculated policies and evals
         let eval = eval.to_device(tch::Device::Cpu);
@@ -240,11 +229,10 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
             let (policy_i, eval_i) = (policy.get(i as i64), eval.get(i as i64));
             let prob_tensor = turn_policy_to_probs_tensor(&policy_i, &node);
             // Expand root
-            node.alpha_expand_tensor(store, prob_tensor);
+            node.alpha_expand_tensor(store, &prob_tensor);
             let value = eval_i.double_value(&[0]) as f32;
             backpropagate(node.idx, value, store);
         }
-        timer.log("Expand all nodes");
         pb.inc(1)
     }
 }

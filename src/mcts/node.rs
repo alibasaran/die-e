@@ -178,7 +178,7 @@ impl Node {
         store.set_node(self);
     }
 
-    pub fn alpha_expand_tensor(&mut self, store: &mut NodeStore, policy: Tensor) {
+    pub fn alpha_expand_tensor(&mut self, store: &mut NodeStore, policy: &Tensor) {
         for action in self.expandable_moves.iter() {
             let next_state = Backgammon::get_next_state(self.state.board, action, self.state.player);
             let encoded_value = self.state.encode(action);

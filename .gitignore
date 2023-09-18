@@ -31,3 +31,5 @@ Cargo.lock
 # ignore models
 /models/*
 !/models/.gitkeep
+/data/*
+!/data/.gitkeep

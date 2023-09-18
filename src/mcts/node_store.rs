@@ -49,6 +49,13 @@ impl NodeStore {
         }
     }
 
+    pub fn get_node_ref(&self, idx: usize) -> &Node {
+        match self.nodes.get(idx) {
+            None => { self.pretty_print(0, 0); panic!("there is no node at idx: {}, {}", idx, self) }
+            Some(node) => node
+        }
+    }
+
     pub fn get_node_as_mut(&mut self, idx: usize) -> &mut Node {
         &mut self.nodes[idx]
     }

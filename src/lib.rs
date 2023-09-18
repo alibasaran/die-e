@@ -18,14 +18,14 @@ pub mod constants {
     pub const DIRICHLET_EPSILON: f32 = 0.25;
 
     pub const ACTION_SPACE_SIZE: i64 = 1352;
-    pub const N_SELF_PLAY_BATCHES: usize = 2048;
+    pub const N_SELF_PLAY_BATCHES: usize = 512;
 
     pub const DEFAULT_TYPE: tch::kind::Kind = tch::Kind::Float;
 
     lazy_static! {
         pub static ref DEVICE: Device = {
             if tch::utils::has_mps() {
-                Device::Cpu
+                Device::Mps
             } else {
                 Device::cuda_if_available()
             }
@@ -44,5 +44,5 @@ pub const MCTS_CONFIG: MctsConfig = MctsConfig {
     iterations: 400,
     c: 1.0,
     // c: std::f32::consts::SQRT_2,
-    simulate_round_limit: 100,
+    simulate_round_limit: 400 // 200 per player = 200 turns,
 };
