@@ -25,7 +25,7 @@ mod encoding_single_and_zero_moves {
     fn single_and_zero_move_tests(roll: (u8, u8), player: i8, actions: Vec<(i8, i8)>) {
         let mut bg = Backgammon::init_with_fields(([0; 24], (0, 0), (0, 0)), player, false);
         bg.roll = roll;
-        let enc = bg.encode(actions.clone());
+        let enc = bg.encode(&actions.clone());
         let dec = bg.decode(enc);
         println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
         assert_eq!(actions, dec);
@@ -56,7 +56,7 @@ mod encoding_double_moves {
     fn double_moves_test(roll: (u8, u8), player: i8, actions: Vec<(i8, i8)>) {
         let mut bg = Backgammon::init_with_fields(([0; 24], (0, 0), (0, 0)), player, false);
         bg.roll = roll;
-        let enc = bg.encode(actions.clone());
+        let enc = bg.encode(&actions.clone());
         let dec = bg.decode(enc);
         println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
         assert_eq!(actions, dec);
@@ -81,7 +81,7 @@ mod encoding_exceptional_cases {
     fn exceptions_test(roll: (u8, u8), player: i8, actions: Vec<(i8, i8)>) {
         let mut bg = Backgammon::init_with_fields(([0; 24], (0, 0), (0, 0)), player, false);
         bg.roll = roll;
-        let enc = bg.encode(actions.clone());
+        let enc = bg.encode(&actions.clone());
         let dec = bg.decode(enc);
         println!("actions: {:?}, \nenc: {}, \ndec: {:?}", actions, enc, dec);
         assert_eq!(actions, dec);

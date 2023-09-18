@@ -3,7 +3,7 @@ use rand::{seq::SliceRandom, thread_rng};
 use serde::{Serialize, Deserialize};
 use nanoid::nanoid;
 
-use crate::{backgammon::Backgammon, mcts::{simple_mcts::mct_search, utils::random_play}};
+use crate::{backgammon::Backgammon, mcts::{simple_mcts::mct_search, utils::random_play, alpha_mcts::alpha_mcts}, alphazero::{nnet::ResNet, alphazero::{AlphaZeroConfig, AlphaZero}}};
 
 
 /*
@@ -15,7 +15,7 @@ TODOs:
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Agent {
-    Random, Mcts, None
+    Random, Mcts, Model, None
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct Turn {
@@ -46,8 +46,8 @@ impl Game {
     }
 }
 
-pub fn save_game(game: &Game) -> Result<(), Box<dyn std::error::Error>> {
-    let path = Path::new("./games/mcts_vs_random").join(format!("{}.json", &game.id));
+pub fn save_game(game: &Game, game_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let path = Path::new(game_path).join(format!("{}.json", &game.id));
     let file = File::create(path)?;
 
     let serialized = serde_json::to_string_pretty(game)?;
@@ -114,7 +114,7 @@ pub fn print_out_game(directory: &str, filename: &str) {
     println!("Winner: {:?}", game.winner)
 }
 
-fn play_mcts_vs_random() -> Game {
+pub fn play_mcts_vs_random() -> Game {
     // Shuffle and select agents
     let mut shuffled_agents = vec![Agent::Random, Agent::Mcts];
     let initial_state = Backgammon::new();
@@ -138,7 +138,7 @@ fn play_mcts_vs_random() -> Game {
         let action: Vec<(i8, i8)> = match curr_player {
             Agent::Mcts => mct_search(current_state, mcts_idx),
             Agent::Random => random_play(&current_state),
-            Agent::None => unreachable!(),
+            _ => unreachable!(),
         };
         println!("\tAction: {:?}", action);
         // Push turn into log
@@ -147,12 +147,73 @@ fn play_mcts_vs_random() -> Game {
         current_state.board = match curr_player {
             Agent::Mcts => Backgammon::get_next_state(current_state.board, &action, mcts_idx),
             Agent::Random => Backgammon::get_next_state(current_state.board, &action, -mcts_idx),
-            Agent::None => unreachable!()
+            _ => unreachable!()
         };
         println!("New board");
         current_state.display_board();
         // Switch Agents
         curr_player = if curr_player == Agent::Mcts {Agent::Random} else {Agent::Mcts}
+    }
+    let winner = Backgammon::check_win_without_player(current_state.board).unwrap();
+    game.winner = shuffled_agents[((winner + 1)/2) as usize].clone();
+    game
+}
+
+pub fn play_mcts_vs_model(net: &ResNet) -> Game {
+    // config for model
+    let config = AlphaZeroConfig {
+        temperature: 1.,
+        learn_iterations: 100,
+        self_play_iterations: 16,
+        batch_size: 2048,
+        num_epochs: 2,
+    };
+
+    // Shuffle and select agents
+    let mut shuffled_agents = vec![Agent::Model, Agent::Mcts];
+    let initial_state = Backgammon::new();
+    shuffled_agents.shuffle(&mut thread_rng());
+    let (player1, player2) = (shuffled_agents[0].clone(), shuffled_agents[1].clone());
+    
+    let mut game: Game = Game::new(player1.clone(), player2.clone(), initial_state);
+    let mut current_state = initial_state;
+    current_state.roll_die();
+    let mut curr_player = player1.clone();
+    let mcts_idx = if curr_player == Agent::Mcts {-1} else {1};
+
+    println!("Player 1: {:?}, Player 2: {:?}", player1, player2);
+
+    while Backgammon::check_win_without_player(current_state.board).is_none() {
+        curr_player = if current_state.player == -1 {player1.clone()} else {player2.clone()};
+        let roll = current_state.roll;
+        println!("Current player: {:?}", curr_player);
+        println!("\tRolled die: {:?}", current_state.roll);
+
+        // Select action depending on the current agent
+        let action: Vec<(i8, i8)> = match curr_player {
+            Agent::Mcts => mct_search(current_state, mcts_idx),
+            Agent::Model => {
+                let mut pi = match alpha_mcts(&current_state, net) {
+                    Some(pi) => pi,
+                    None => {
+                        println!("No valid moves!");
+                        current_state.apply_move(&vec![]);
+                        continue;
+                    }
+                };
+                let temperatured_pi = pi.pow_(1.0 / config.temperature);
+                let selected_action = AlphaZero::weighted_select_tensor_idx(&temperatured_pi);
+                current_state.decode(selected_action as u32)
+            },
+            _ => unreachable!(),
+        };
+        println!("\tAction: {:?}", action);
+        // Push turn into log
+        game.turns.push(Turn { roll, player: curr_player.clone(), action: action.clone() });
+        // Update current board
+        current_state.apply_move(&action);
+        println!("New board");
+        current_state.display_board();
     }
     let winner = Backgammon::check_win_without_player(current_state.board).unwrap();
     game.winner = shuffled_agents[((winner + 1)/2) as usize].clone();

@@ -209,23 +209,17 @@ impl Node {
     pub fn simulate(&mut self, player: i8) -> f32 {
         let mut rng = rand::thread_rng();
         let mut curr_state = self.state;
-        let mut curr_player = self.state.player;
 
         for _ in 0..MCTS_CONFIG.simulate_round_limit {
             if let Some(winner) = Backgammon::check_win_without_player(curr_state.board) {
                 return (((winner / player) + 1) / 2) as f32;
             }
-
-            curr_state.roll_die();
             let valid_moves = curr_state.get_valid_moves();
 
             if !valid_moves.is_empty() {
                 let move_to_play = valid_moves.choose(&mut rng).unwrap();
-                curr_state.board =
-                    Backgammon::get_next_state(curr_state.board, move_to_play, curr_player);
+                curr_state.apply_move(move_to_play);
             }
-
-            curr_player = -curr_player;
         }
         rng.gen_range(0..=1) as f32
     }

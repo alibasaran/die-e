@@ -172,7 +172,7 @@ impl AlphaZero {
             // Apply temperature to pi
             let temperatured_pi = pi.pow_(1.0 / self.config.temperature);
             // Select an action from probabilities
-            let selected_action = self.weighted_select_tensor_idx(&temperatured_pi);
+            let selected_action = Self::weighted_select_tensor_idx(&temperatured_pi);
 
             // Save results to memory
             memory.push(MemoryFragment {
@@ -272,7 +272,7 @@ impl AlphaZero {
                 }
 
                 // Select an action from probabilities
-                let selected_action = self.weighted_select_tensor_idx(&curr_prob_tensor);
+                let selected_action = Self::weighted_select_tensor_idx(&curr_prob_tensor);
 
                 // Save results to memory
                 memories[*init_idx].push(MemoryFragment {
@@ -500,7 +500,7 @@ impl AlphaZero {
         }
     }
 
-    fn weighted_select_tensor_idx(&self, pi: &Tensor) -> usize {
+    pub fn weighted_select_tensor_idx(pi: &Tensor) -> usize {
         let mut rng = thread_rng();
         let weights_iter = match pi.iter::<f64>() {
             Ok(iter) => iter,
@@ -546,7 +546,7 @@ impl AlphaZero {
                 // Apply temperature to pi
                 let temperatured_pi = pi.pow_(1.0 / self.config.temperature);
                 // Select an action from probabilities
-                let selected_action = self.weighted_select_tensor_idx(&temperatured_pi);
+                let selected_action = Self::weighted_select_tensor_idx(&temperatured_pi);
 
                 // Decode and play selected action
                 let decoded_action = bg.decode(selected_action as u32);

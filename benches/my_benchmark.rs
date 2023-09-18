@@ -96,7 +96,7 @@ fn bench(c: &mut Criterion) {
             store.add_node(state, None, None, Some(state.roll), 0.);
             let mut node = store.get_node(0);
             let policy = Tensor::rand(1352, (Kind::Float, Device::Cpu));
-            node.alpha_expand_tensor(&mut store, policy);
+            node.alpha_expand_tensor(&mut store, &policy);
         })
     });
 

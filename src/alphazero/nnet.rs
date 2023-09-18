@@ -48,9 +48,6 @@ impl ResBlock {
     }
 }
 
-/*
-TODO: Implement ResNet
-*/
 #[derive(Debug)]
 pub struct ResNet {
     pub vs: nn::VarStore,
