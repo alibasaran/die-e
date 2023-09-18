@@ -10,19 +10,13 @@ use die_e::{
     mcts::{
         alpha_mcts::{alpha_mcts_parallel, TimeLogger},
         node_store::NodeStore,
-    }, versus::{Game, play_mcts_vs_model, save_game, load_game},
+    }, versus::{Game, play_mcts_vs_model, save_game, load_game, print_game},
 };
 use itertools::Itertools;
 use tch::{Device, Kind, Tensor, nn::VarStore};
 
 fn main() {
-    let mut vs = VarStore::new(*DEVICE);
-    vs.load("./models/trained_model.ot").unwrap();
-    let mut net: ResNet = ResNet::new(vs);
-    for _ in 0..10 {
-        let game: Game = play_mcts_vs_model(&net);
-        save_game(&game, "./games/mcts_vs_model");
-    }
+    print_game("./games/mcts_vs_model", "2cNVUCvj4gaPPQ88xf0aE.json", false);
     // let config = AlphaZeroConfig {
     //     temperature: 1.,
     //     learn_iterations: 100,

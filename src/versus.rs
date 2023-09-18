@@ -70,6 +70,36 @@ pub fn load_game(directory: &str, filename: &str) -> Result<Game, Box<dyn std::e
     Ok(game)
 }
 
+pub fn print_game(directory: &str, filename: &str, wait_user_input: bool) {
+    let game = match load_game(directory, filename) {
+        Ok(game) => game,
+        Err(e) => panic!("Failed to load the game: {:?}", e),
+    };
+    println!("Game ID: {}", game.id);
+    println!("Player 1: {:?}, Player 2: {:?}", game.player1, game.player2);
+    println!("Game winner: {:?}", game.winner);
+
+    println!("Initial State:");
+    let mut current_state = game.initial_state;
+    current_state.display_board();
+
+    for turn in game.turns {
+        println!("Player: {:?}", turn.player);
+        println!("Roll: {:?}", turn.roll);
+        current_state.roll = turn.roll;
+        println!("Action: {:?}", turn.action);
+        current_state.apply_move(&turn.action);
+        println!("State after action has been played:");
+        current_state.display_board();
+
+        if wait_user_input {
+            println!("Press Enter to continue...");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).expect("Failed to read input");
+        }
+    }
+}
+
 pub fn load_all_games(directory: &str) -> Result<Vec<Game>, Box<dyn std::error::Error>> {
     let mut games = Vec::new();
 
