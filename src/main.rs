@@ -16,23 +16,31 @@ use itertools::Itertools;
 use tch::{Device, Kind, Tensor, nn::VarStore};
 
 fn main() {
-    print_game("./games/mcts_vs_model", "2cNVUCvj4gaPPQ88xf0aE.json", false);
-    // let config = AlphaZeroConfig {
-    //     temperature: 1.,
-    //     learn_iterations: 100,
-    //     self_play_iterations: 16,
-    //     batch_size: 2048,
-    //     num_epochs: 2,
-    // };
-    // let mut az = AlphaZero::new(config);
-    // az.learn_parallel();
-    // let mut timer = TimeLogger::default();
-    // timer.start();
-    // let a = Tensor::rand([2048, 1352], (Kind::Float, Device::Mps));
-    // let max = a.argmax(1, false);
-    // max.print();
-    // timer.log("argmax done")
+    // let mut vs = VarStore::new(*DEVICE);
+    // vs.load("./models/best_model.ot").unwrap();
+    let model_path = Path::new("./models/trained_model.ot");
+    let config = AlphaZeroConfig {
+        temperature: 1.,
+        learn_iterations: 100,
+        self_play_iterations: 16,
+        batch_size: 2048,
+        num_epochs: 2,
+        model_path: Some(model_path.to_str().unwrap().to_string())
+    };
+    let mut az = AlphaZero::new(config);
 
+    let game = play_mcts_vs_model(&az);
+
+    // let data_path1 = Path::new("./data/run-0/lrn-0/sp-0");
+    // let mut memory = az.load_training_data(data_path1);
+
+    // let data_path2 = Path::new("./data/run-0/lrn-0/sp-1");
+    // let mut memory2 = az.load_training_data(data_path2);
+
+    // memory.append(&mut memory2);
+    // az.train(&mut memory);
+
+    // let _ = az.save_current_model(model_path);
 
 }
 

@@ -189,16 +189,7 @@ pub fn play_mcts_vs_random() -> Game {
     game
 }
 
-pub fn play_mcts_vs_model(net: &ResNet) -> Game {
-    // config for model
-    let config = AlphaZeroConfig {
-        temperature: 1.,
-        learn_iterations: 100,
-        self_play_iterations: 16,
-        batch_size: 2048,
-        num_epochs: 2,
-    };
-
+pub fn play_mcts_vs_model(az: &AlphaZero) -> Game {
     // Shuffle and select agents
     let mut shuffled_agents = vec![Agent::Model, Agent::Mcts];
     let initial_state = Backgammon::new();
@@ -222,19 +213,7 @@ pub fn play_mcts_vs_model(net: &ResNet) -> Game {
         // Select action depending on the current agent
         let action: Vec<(i8, i8)> = match curr_player {
             Agent::Mcts => mct_search(current_state, mcts_idx),
-            Agent::Model => {
-                let mut pi = match alpha_mcts(&current_state, net) {
-                    Some(pi) => pi,
-                    None => {
-                        println!("No valid moves!");
-                        current_state.apply_move(&vec![]);
-                        continue;
-                    }
-                };
-                let temperatured_pi = pi.pow_(1.0 / config.temperature);
-                let selected_action = AlphaZero::weighted_select_tensor_idx(&temperatured_pi);
-                current_state.decode(selected_action as u32)
-            },
+            Agent::Model => az.get_next_move_for_state(&current_state),
             _ => unreachable!(),
         };
         println!("\tAction: {:?}", action);

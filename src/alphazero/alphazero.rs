@@ -13,11 +13,12 @@ use tch::{
     nn::{self, Adam, Optimizer, OptimizerConfig, VarStore},
     Tensor,
 };
+use nanoid::nanoid;
 
 use super::nnet::ResNet;
 
 use crate::{
-    backgammon::Backgammon,
+    backgammon::{Backgammon, Actions},
     constants::{DEFAULT_TYPE, DEVICE, N_SELF_PLAY_BATCHES},
     mcts::{
         alpha_mcts::{alpha_mcts, alpha_mcts_parallel, TimeLogger},
@@ -34,6 +35,7 @@ pub struct AlphaZeroConfig {
     pub self_play_iterations: usize,
     pub num_epochs: usize,
     pub batch_size: usize,
+    pub model_path: Option<String>
 }
 
 pub struct AlphaZero {
@@ -69,7 +71,12 @@ torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0
 
 impl AlphaZero {
     pub fn new(config: AlphaZeroConfig) -> Self {
-        let vs = nn::VarStore::new(*DEVICE);
+        let mut vs = nn::VarStore::new(*DEVICE);
+        
+        if let Some(m_path) = &config.model_path {
+           let _ = vs.load(m_path);
+        }
+
         let opt = Adam::default().wd(1e-4).build(&vs, 1e-4).unwrap();
 
         println!(
@@ -80,7 +87,7 @@ impl AlphaZero {
         \nMCTS Config:
         \n{:?}
         ",
-            *DEVICE, config, MCTS_CONFIG
+            *DEVICE, &config, MCTS_CONFIG
         );
 
         AlphaZero {
@@ -91,7 +98,21 @@ impl AlphaZero {
         }
     }
 
-    pub fn save_training_data(&self, data: &[MemoryFragment], name: &str) {
+    pub fn get_next_move_for_state(&self, current_state: &Backgammon) -> Actions {
+        let mut pi = match alpha_mcts(current_state, &self.model) {
+            Some(pi) => pi,
+            None => return vec![]
+        };
+        let temperatured_pi = pi.pow_(1.0 / self.config.temperature);
+        let selected_action = AlphaZero::weighted_select_tensor_idx(&temperatured_pi);
+        current_state.decode(selected_action as u32)
+    }
+
+    pub fn save_training_data(&self, data: &[MemoryFragment], path: &Path) {
+        if !path.exists() {
+            panic!("path: {} does not exist!", path.to_str().unwrap())
+        }
+
         let (outcomes, ps_values, states): (Vec<i8>, Vec<Tensor>, Vec<Tensor>) =
             multiunzip(data.iter().map(|fragment| {
                 (
@@ -106,35 +127,31 @@ impl AlphaZero {
         let states = Tensor::stack(&states, 0).to_device(tch::Device::Cpu).squeeze();
         let outcomes = Tensor::from_slice(&outcomes);
 
-        let path_base = format!("./data/{}", name);
-        let path = Path::new(&path_base);
-        let parent = path.parent().unwrap();
-        if !parent.exists() {
-            let _ = fs::create_dir(parent);
-        }
-        let path = format!("./data/{}", name);
         match (
-            ps.save(path.clone() + "_ps"),
-            states.save(path.clone() + "_states"),
-            outcomes.save(path.clone() + "_outcomes"),
+            ps.save(path.join("ps")),
+            states.save(path.join("states")),
+            outcomes.save(path.join("outcomes")),
         ) {
             (Ok(_), Ok(_), Ok(_)) => (),
             _ => panic!("unable to save training data!"),
         }
     }
 
-    pub fn load_training_data(&self, name: &str) -> Vec<MemoryFragment> {
-        let path = Path::new("./data").join(name);
-        if !path.parent().unwrap().exists() {
-            panic!("there is no path: {:?}", &path)
+    /**
+     Loads training data (ps, states, outcomes) given a folder path
+     
+     path: the Path to load the data from can end with:
+     * lrn-x for all training data under the learn 
+     */
+    pub fn load_training_data(&self, path: &Path) -> Vec<MemoryFragment> {
+        if !path.exists() {
+            panic!("path: {} does not exist!", path.to_str().unwrap())
         }
-        let path = path.to_str().unwrap().to_owned();
-        let ps = Tensor::load(path.clone() + "_ps").unwrap();
-        let states = Tensor::load(path.clone() + "_states").unwrap();
-        let outcomes = Tensor::load(path.clone() + "_outcomes").unwrap();
+        let ps = Tensor::load(path.join("ps")).unwrap().squeeze();
+        let states = Tensor::load(path.join("states")).unwrap().squeeze();
+        let outcomes = Tensor::load(path.join("outcomes")).unwrap().squeeze();
 
         let data_size = ps.size()[0];
-        println!("{:?}", data_size);
         (0..data_size).map(|data_idx| {
             MemoryFragment {
                 outcome: outcomes.get(data_idx).int64_value(&[]) as i8,
@@ -306,7 +323,7 @@ impl AlphaZero {
         all_memories
     }
 
-    fn train(&mut self, memory: &mut Vec<MemoryFragment>) {
+    pub fn train(&mut self, memory: &mut Vec<MemoryFragment>) {
         let mut rng = thread_rng();
         memory.shuffle(&mut rng);
         for batch_idx in (0..memory.len()).step_by(self.config.batch_size) {
@@ -335,7 +352,7 @@ impl AlphaZero {
                 false,
             );
 
-            let state_tensor = Tensor::stack(&states, 0).squeeze_dim(1).to_device_(
+            let state_tensor = Tensor::stack(&states, 0).squeeze().to_device_(
                 *DEVICE,
                 DEFAULT_TYPE,
                 true,
@@ -386,7 +403,13 @@ impl AlphaZero {
         }
     }
 
+    pub fn save_current_model(&self, save_path: &Path) -> Result<(), tch::TchError> {
+        self.model.vs.save(save_path)
+    }
+
     pub fn learn_parallel(&mut self) {
+        let runpath_base = format!("./data/run-{}", nanoid!());
+        let _ = fs::create_dir(&runpath_base);
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
         )
@@ -412,6 +435,10 @@ impl AlphaZero {
         );
 
         for l_i in 0..self.config.learn_iterations {
+            // Create dir for current learn iteration
+            let lrn_path = format!("{}/lrn-{}", &runpath_base, l_i);
+            let _ = fs::create_dir(&lrn_path);
+
             pb_self_play.reset();
             // Get samples for training
             let mut memory: Vec<MemoryFragment> = vec![];
@@ -421,7 +448,9 @@ impl AlphaZero {
                 let mut res = self.self_play_parallel();
                 memory.append(&mut res);
                 pb_self_play.set_message(format!("Saving training data... Self-play iteration #{}", sp_i + 1));
-                self.save_training_data(&memory, &format!("lrn-{}/sp-{}", l_i, sp_i));
+
+                let sp_dir_path = format!("{}/sp-{}", &lrn_path, sp_i);
+                self.save_training_data(&memory, Path::new(&sp_dir_path));
                 pb_self_play.set_message(format!("Self-play iteration #{} complete, saved training data", sp_i + 1));
                 pb_self_play.inc(1);
 
