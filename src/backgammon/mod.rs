@@ -63,6 +63,7 @@ pub struct Backgammon {
     pub roll: (u8, u8),
     pub player: i8,
     pub is_second_play: bool,
+    pub id: usize // used in model vs model play
 }
 
 impl Default for Backgammon {
@@ -84,6 +85,7 @@ impl Backgammon {
             roll: (0, 0),
             player: -1,
             is_second_play: false,
+            id: 0,
         }
     }
 
@@ -93,6 +95,7 @@ impl Backgammon {
             roll: (0, 0),
             player,
             is_second_play,
+            id: 0
         }
     }
 

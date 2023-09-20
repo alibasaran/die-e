@@ -1,5 +1,7 @@
 use std::fmt;
 
+use itertools::Itertools;
+
 use crate::backgammon::{Backgammon, Actions};
 
 use super::node::Node;
@@ -18,6 +20,10 @@ impl fmt::Display for NodeStore {
 impl NodeStore {
     pub fn new() -> Self {
         NodeStore { nodes: vec![] }
+    }
+
+    pub fn get_root_nodes(&self) -> Vec<&Node> {
+        self.nodes.iter().filter(|&node| node.parent.is_none()).collect_vec()
     }
 
     pub fn add_node(

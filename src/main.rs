@@ -22,14 +22,17 @@ fn main() {
     let config = AlphaZeroConfig {
         temperature: 1.,
         learn_iterations: 100,
-        self_play_iterations: 16,
+        self_play_iterations: 8,
         batch_size: 2048,
         num_epochs: 2,
         model_path: Some(model_path.to_str().unwrap().to_string())
     };
     let mut az = AlphaZero::new(config);
 
-    let game = play_mcts_vs_model(&az);
+    let random_net = ResNet::default();
+
+    let result = az.play_vs_model(&random_net);
+    println!("Result: {:?}", result);
 
     // let data_path1 = Path::new("./data/run-0/lrn-0/sp-0");
     // let mut memory = az.load_training_data(data_path1);

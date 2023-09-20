@@ -36,12 +36,11 @@ pub fn get_prob_tensor(
     Some(probs.div(prob_sum))
 }
 
-pub fn get_prob_tensor_parallel(node_indices: Vec<usize>, store: &NodeStore) -> Tensor {
-    let mut result = Tensor::zeros([node_indices.len() as i64, ACTION_SPACE_SIZE], (DEFAULT_TYPE, *DEVICE));
-    let (xs, ys, vals): (Vec<i32>, Vec<i32>, Vec<f32>) = multiunzip(node_indices.iter().flat_map(|node_idx| {
-        let node = store.get_node_ref(*node_idx);
+pub fn get_prob_tensor_parallel(nodes: &[&Node]) -> Tensor {
+    let mut result = Tensor::zeros([nodes.len() as i64, ACTION_SPACE_SIZE], (DEFAULT_TYPE, *DEVICE));
+    let (xs, ys, vals): (Vec<i32>, Vec<i32>, Vec<f32>) = multiunzip(nodes.iter().flat_map(|&node| {
         node.expandable_moves.iter().map(move |actions| {
-            (*node_idx as i32, node.state.encode(actions) as i32, node.visits)
+            (node.idx as i32, node.state.encode(actions) as i32, node.visits)
         })
     }));
     let xs_tensor = Tensor::from_slice(&xs);

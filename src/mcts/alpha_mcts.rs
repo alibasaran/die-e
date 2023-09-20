@@ -127,10 +127,10 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
 /*
     Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
 */
-pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet, pb: Option<ProgressBar>) {
+pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet, pb: Option<ProgressBar>, bypass_empty_check: bool) {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
-    assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
+    assert!(store.is_empty() || bypass_empty_check, "AlphaMCTS paralel expects an empty store");
     
     // Convert all states a tensor
     let states_vec = states.iter().map(|state| state.as_tensor()).collect_vec();
