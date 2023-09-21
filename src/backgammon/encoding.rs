@@ -14,7 +14,8 @@ impl Backgammon {
         // get the roll and the high and low roll values
         let roll = self.roll;
         let (high_roll, low_roll) = if roll.0 > roll.1 { (roll.0, roll.1) } else { (roll.1, roll.0) };
-        let mut low_roll_flag = false;
+        let mut low_roll_first_flag = false;
+        let mut low_roll_second_flag = false;
     
         // get the minimum roll values required to be able to play the actions provided
         let mut minimum_rolls = actions.iter().map(|&(from, to)| {
@@ -42,32 +43,60 @@ impl Backgammon {
         for (i, &(from, to)) in actions.iter().enumerate() {
             match i {
                 0 => {match (from, to) {
-                    (-1, t) if t < 6 => {encode_sum += 24;},
-                    (-1, t) if t > 17 => {encode_sum += 24;},
+                    (-1, t) if t < 6 => {
+                        encode_sum += 24;
+
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        let distance = (t - (-1)) as u8;
+                        low_roll_first_flag = distance == low_roll;
+                    },
+                    (-1, t) if t > 17 => {
+                        encode_sum += 24;
+
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        let distance = (24 - t) as u8;
+                        low_roll_first_flag = distance == low_roll;
+                    },
                     (f, -1) if f < 6 => {encode_sum += f as u32;},
                     (f, -1) if f > 17 => {encode_sum += f as u32;},
                     (f, _) => {
                         encode_sum += f as u32; 
-                        // raise the low_roll_flag if the first move is certainly the low roll
-                        low_roll_flag = minimum_rolls.first().unwrap() == &low_roll;
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        low_roll_first_flag = minimum_rolls.first().unwrap() == &low_roll;
                     },
                 }},
                 1 => {match (from, to) {
-                    (-1, t) if t < 6 => {encode_sum += 26 * 24;},
-                    (-1, t) if t > 17 => {encode_sum += 26 * 24;},
+                    (-1, t) if t < 6 => {
+                        encode_sum += 26 * 24;
+
+                        // raise the low_roll_second_flag if the first move is certainly the low roll
+                        let distance = (t - (-1)) as u8;
+                        low_roll_second_flag = distance == low_roll;
+                    },
+                    (-1, t) if t > 17 => {
+                        encode_sum += 26 * 24;
+
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        let distance = (24 - t) as u8;
+                        low_roll_second_flag = distance == low_roll;
+                    },
                     (f, -1) if f < 6 => {encode_sum += 26 * (f as u32);},
                     (f, -1) if f > 17 => {encode_sum += 26 * (f as u32);},
-                    (f, _) => {encode_sum += 26 * (f as u32)},
+                    (f, _) => {
+                        encode_sum += 26 * (f as u32);
+                        // raise the low_roll_second flag if the first move is certainly the low roll
+                        low_roll_second_flag = minimum_rolls.get(1).unwrap() == &low_roll;
+                    },
                 }},
                 _ => unreachable!(),
             }
         }
     
-        // add 26 * 25 to encode_sum if the action has a single move
-        if actions.get(1).is_none() {encode_sum += 26 * 25}
+        // add 26 * 25 to encode_sum if the action has a single move and reset low_roll_first_flag
+        if actions.get(1).is_none() {low_roll_first_flag = false; encode_sum += 26 * 25}
     
         // compute whether the high roll was played first
-        let high_roll_first = if low_roll_flag {false} else if minimum_rolls[1] != 0 {minimum_rolls[0] >= minimum_rolls[1]} else {minimum_rolls[0] > low_roll};
+        let high_roll_first = if low_roll_first_flag {false} else if low_roll_second_flag {true} else if minimum_rolls[1] != 0 {minimum_rolls[0] >= minimum_rolls[1]} else {minimum_rolls[0] > low_roll};
     
         // add 676 to the final value if the high roll was played first
         if high_roll_first { encode_sum } else { encode_sum + 676 }
