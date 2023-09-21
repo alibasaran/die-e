@@ -10,7 +10,7 @@ use die_e::{
     mcts::{
         alpha_mcts::{alpha_mcts_parallel, TimeLogger},
         node_store::NodeStore,
-    }, versus::{Game, play_mcts_vs_model, save_game, load_game, print_game},
+    }, versus::{Game, play_mcts_vs_model, save_game, load_game, print_game, play_random_vs_random, play_mcts_vs_random},
 };
 use itertools::Itertools;
 use tch::{Device, Kind, Tensor, nn::VarStore};

@@ -228,6 +228,27 @@ impl Backgammon {
         println!("\n");
     }
 
+    pub fn is_valid(&mut self) {
+        let (points, pieces_hit, pieces_collected) = self.board;
+        let mut total_player_1 = 0;
+        let mut total_player_2 = 0;
+
+        for point in 0..=23 {
+            if points[point as usize] < 0 {
+                total_player_1 -= points[point as usize];
+            } else if points[point as usize] > 0 {
+                total_player_2 += points[point as usize];
+            }
+        }
+
+        total_player_1 += pieces_hit.0 as i8;
+        total_player_1 += pieces_collected.0 as i8;
+        total_player_2 += pieces_hit.1 as i8;
+        total_player_2 += pieces_collected.1 as i8;
+        println!("Total pieces: ({}, {})", total_player_1, total_player_2);
+        assert!(total_player_1 == 15 && total_player_2 == 15)
+    }
+
     pub fn get_initial_state() -> Board {
         (
             [

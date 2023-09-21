@@ -174,11 +174,8 @@ pub fn play_mcts_vs_random() -> Game {
         // Push turn into log
         game.turns.push(Turn { roll, player: curr_player.clone(), action: action.clone() });
         // Update current board
-        current_state.board = match curr_player {
-            Agent::Mcts => Backgammon::get_next_state(current_state.board, &action, mcts_idx),
-            Agent::Random => Backgammon::get_next_state(current_state.board, &action, -mcts_idx),
-            _ => unreachable!()
-        };
+        current_state.apply_move(&action);
+        current_state.is_valid();
         println!("New board");
         current_state.display_board();
         // Switch Agents
@@ -221,6 +218,41 @@ pub fn play_mcts_vs_model(az: &AlphaZero) -> Game {
         game.turns.push(Turn { roll, player: curr_player.clone(), action: action.clone() });
         // Update current board
         current_state.apply_move(&action);
+        println!("New board");
+        current_state.display_board();
+    }
+    let winner = Backgammon::check_win_without_player(current_state.board).unwrap();
+    game.winner = shuffled_agents[((winner + 1)/2) as usize].clone();
+    game
+}
+
+pub fn play_random_vs_random() -> Game {
+    // Shuffle and select agents
+    let mut shuffled_agents = vec![Agent::Random, Agent::Random];
+    let initial_state = Backgammon::new();
+    shuffled_agents.shuffle(&mut thread_rng());
+    let (player1, player2) = (shuffled_agents[0].clone(), shuffled_agents[1].clone());
+    
+    let mut game: Game = Game::new(player1.clone(), player2.clone(), initial_state);
+    let mut current_state = initial_state;
+    let mut curr_player = player1.clone();
+
+    println!("Player 1: {:?}, Player 2: {:?}", player1, player2);
+
+    while Backgammon::check_win_without_player(current_state.board).is_none() {
+        // Roll die
+        let roll = current_state.roll_die();
+        println!("Current player: {:?}", curr_player);
+        println!("\tRolled die: {:?}", current_state.roll);
+
+        let action: Vec<(i8, i8)> = random_play(&current_state);
+
+        println!("\tAction: {:?}", action);
+        // Push turn into log
+        game.turns.push(Turn { roll, player: curr_player.clone(), action: action.clone() });
+        // Update current board
+        current_state.apply_move(&action);
+        current_state.is_valid();
         println!("New board");
         current_state.display_board();
     }
