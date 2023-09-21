@@ -8,7 +8,7 @@ impl Backgammon {
     
         // return special case for when there are no actions
         if actions.is_empty() {
-            return 676;
+            return 1352;
         }
         
         // get the roll and the high and low roll values
@@ -74,8 +74,8 @@ impl Backgammon {
     }
     
     pub fn decode(&self, action: u32) -> Actions {
-        // decoding for the special value (676) for empty actions
-        if action == 676 {
+        // decoding for the special value (1352) for empty actions
+        if action == 1352 {
             return vec![];
         }
     

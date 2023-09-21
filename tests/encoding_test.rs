@@ -79,6 +79,7 @@ mod encoding_exceptional_cases {
     #[test_case((4, 5), -1, vec![(0, -1), (0, -1)]; "original_should_be_same_as_decoded_exception_case_1")]
     #[test_case((2, 1), -1, vec![(0, -1), (0, -1)]; "original_should_be_same_as_decoded_when_enc_is_0")]
     #[test_case((6, 1), 1, vec![(21, -1)]; "should_work_when_single_hrf_collection_while_low_roll_possible_without_collection")]
+    #[test_case((4, 5), 1, vec![(0, 4), (0, 5)]; "should_work_when_both_froms_are_zero_hrs")]
     fn exceptions_test(roll: (u8, u8), player: i8, actions: Vec<(i8, i8)>) {
         let mut bg = Backgammon::init_with_fields(([0; 24], (0, 0), (0, 0)), player, false);
         bg.roll = roll;
