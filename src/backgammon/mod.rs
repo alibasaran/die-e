@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt, vec};
@@ -97,6 +98,70 @@ impl Backgammon {
             is_second_play,
             id: 0
         }
+    }
+
+    pub fn to_pretty_str(&self) -> String {
+        let board = self.board.0;
+        let board_len = board.len();
+
+        let board_bot = (0..board_len/2).rev().map(|i| i.to_string()).collect_vec();
+        let board_top = (board_len/2..board_len).rev().map(|i| i.to_string()).collect_vec();
+        let mut inner_board = vec![];
+        
+        for i in 1..=6 {
+            let mut row = vec![];
+            for pos in (0..board_len/2).rev() {
+                let piece_info = board[pos];
+                if i == 6 && i <= piece_info.abs() {
+                    row.push(format!("+{}", piece_info.abs() - 5))
+                } else if i <= piece_info.abs() {
+                    let symbol = if piece_info < 0 { String::from("x") } else {String::from("o")};
+                    row.push(symbol)
+                } else {
+                    row.push(String::from(" "))
+                }
+            }
+            inner_board.push(row)
+        }
+
+        for i in (1..=6).rev() {
+            let mut row = vec![];
+            for piece_info in board.iter().take(board_len).skip(board_len/2) {
+                if i == 6 && i <= piece_info.abs() {
+                    row.push(format!("+{}", piece_info.abs() - 5))
+                } else if i <= piece_info.abs() {
+                    let symbol = if *piece_info < 0 { String::from("x") } else {String::from("o")};
+                    row.push(symbol)
+                } else {
+                    row.push(String::from(" "))
+                }
+            }
+            inner_board.push(row);
+        }
+
+        let mut final_board = vec![board_bot];
+        final_board.extend(inner_board);
+        final_board.push(board_top);
+        final_board.iter_mut().for_each(|row| {
+            row.insert(row.len()/2, String::from("|"));
+            row.insert(0, String::from("|"));
+            row.push(String::from("|"));
+
+        });
+        
+        let final_board_str = final_board.iter().rev().map(|row| {
+            row.join("\t")
+        }).join("\n");
+
+        let player_as_string = if self.player == -1 {String::from("Player 1")} else {String::from("Player 2")};
+        let player1_info = format!("Player 1:\n\tBroken Pieces: {}\n\tPieces Collected:{}", &self.board.1.0, &self.board.2.0);
+        let player2_info = format!("Player 2:\n\tBroken Pieces: {}\n\tPieces Collected:{}", &self.board.1.1, &self.board.2.1);
+        
+        let info_string = format!("Current turn: {}\tRoll: {:?}\n{}\n{}", player_as_string, &self.roll, player1_info, player2_info);
+
+        let line_break = "=".repeat(110);
+
+        format!("{}\n{}\n{}\n{}", info_string, line_break, final_board_str, line_break)
     }
 
     pub fn roll_die(&mut self) -> (u8, u8) {
