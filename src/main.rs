@@ -210,11 +210,8 @@ fn play(player1: Player, player2: Player) -> PlayResult {
             let initial_idx = game.id;
             let (game_mut, curr_game) = games.get_mut(&initial_idx).unwrap();
 
-            if game_mut.player == -1 {
-                curr_game.turns.push(Turn { roll: game_mut.roll, player: player1.player_type.clone(), action: action.clone() });
-            } else {
-                curr_game.turns.push(Turn { roll: game_mut.roll, player: player2.player_type.clone(), action: action.clone() });
-            }
+            let player_type = if game_mut.player == -1 {player1.player_type.clone()} else {player2.player_type.clone()};
+            curr_game.turns.push(Turn { roll: game_mut.roll, player: player_type, action: action.clone() });
 
             if action.is_empty() {
                 game_mut.skip_turn();
