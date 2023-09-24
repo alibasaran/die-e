@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     path::Path,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use die_e::{
@@ -127,6 +127,7 @@ fn time_states_conv() {
     timer.log("Inital states conversion");
 }
 
+#[derive(Debug)]
 enum PlayerType {
     Model,
     MCTS,
@@ -138,7 +139,18 @@ struct Player {
     model: Option<AlphaZero>,
 }
 
-fn play(player1: Player, player2: Player) -> Option<i32> {
+#[derive(Debug)]
+struct PlayResult {
+    player1: PlayerType,
+    player2: PlayerType,
+    wins_p1: usize,
+    wins_p2: usize,
+    n_games: usize,
+    winrate: f64, // TODO: games, list of all games played during the session
+}
+
+fn play(player1: Player, player2: Player) -> PlayResult {
+    println!("\nStarting play!");
     let pb_play = MultiProgress::new();
     let sty = ProgressStyle::with_template(
         "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
@@ -170,13 +182,18 @@ fn play(player1: Player, player2: Player) -> Option<i32> {
         let (games_p1, games_p2): (Vec<Backgammon>, Vec<Backgammon>) =
             games.values().partition(|state| state.player == player_p1);
 
-
-        let spinner_style = ProgressStyle::with_template("{spinner:.green} {msg}").unwrap();
-        let actions_pb = pb_play.add(ProgressBar::new(0).with_style(spinner_style.clone()));
-        actions_pb.set_message("Calculating actions for player1");
+        let spinner_style =
+            ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg}").unwrap();
+        let actions_pb = pb_play.add(
+            ProgressBar::new(0)
+                .with_style(spinner_style.clone())
+        );
+        actions_pb.enable_steady_tick(Duration::from_millis(200));
+        actions_pb.set_message(format!("Calculating actions for player1: {:?}", player1.player_type));
         let actions_p1 = get_actions_for_player(&player1, &games_p1);
-        actions_pb.set_message("Calculating actions for player1");
+        actions_pb.set_message(format!("Calculating actions for player2: {:?}", player2.player_type));
         let actions_p2 = get_actions_for_player(&player2, &games_p2);
+        actions_pb.set_message("playing moves...");
 
         let actions_and_games = actions_p1
             .iter()
@@ -216,12 +233,14 @@ fn play(player1: Player, player2: Player) -> Option<i32> {
         }
     }
     let winrate = wins_p1 / num_games as f64;
-    if winrate >= 0.55 {
-        Some(1)
-    } else if wins_p1 <= 0.45 {
-        Some(2)
-    } else {
-        None
+    let wins_p1 = wins_p1 as usize;
+    PlayResult {
+        player1: player1.player_type,
+        player2: player2.player_type,
+        wins_p1,
+        wins_p2: num_games - wins_p1,
+        winrate,
+        n_games: num_games,
     }
 }
 
