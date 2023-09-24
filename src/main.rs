@@ -22,7 +22,7 @@ use die_e::{
         save_game, Game,
     },
 };
-use indicatif::ProgressBar;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
@@ -30,7 +30,10 @@ use tch::{nn::VarStore, Device, Kind, Tensor};
 
 fn main() {
     // Use 4 cores
-    rayon::ThreadPoolBuilder::new().num_threads(6).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(6)
+        .build_global()
+        .unwrap();
     // let mut vs = VarStore::new(*DEVICE);
     // vs.load("./models/best_model.ot").unwrap();
     let model_path = Path::new("./models/best_model.ot");
@@ -80,12 +83,12 @@ fn main() {
 
     let player1 = Player {
         player_type: PlayerType::Model,
-        model: Some(az)
+        model: Some(az),
     };
 
     let player2 = Player {
-        player_type: PlayerType::MCTS,
-        model: None
+        player_type: PlayerType::Random,
+        model: None,
     };
 
     let winner = play(player1, player2);
@@ -136,6 +139,12 @@ struct Player {
 }
 
 fn play(player1: Player, player2: Player) -> Option<i32> {
+    let pb_play = MultiProgress::new();
+    let sty = ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
+    )
+    .unwrap();
+
     let num_games = 100;
     let round_limit = 400;
     let mut games: HashMap<usize, Backgammon> = HashMap::from_iter((0..num_games).map(|idx| {
@@ -151,21 +160,31 @@ fn play(player1: Player, player2: Player) -> Option<i32> {
     let mut wins_p1 = 0.;
     let player_p1 = -1;
 
+    let pb_games =
+        pb_play.add(ProgressBar::new(num_games.try_into().unwrap()).with_style(sty.clone()));
+
+    let mut round_count = 0;
     while !games.is_empty() {
+        pb_games.set_position((num_games - games.len()) as u64);
+        pb_games.set_message(format!("On round: {}", round_count));
         let (games_p1, games_p2): (Vec<Backgammon>, Vec<Backgammon>) =
             games.values().partition(|state| state.player == player_p1);
 
+
+        let spinner_style = ProgressStyle::with_template("{spinner:.green} {msg}").unwrap();
+        let actions_pb = pb_play.add(ProgressBar::new(0).with_style(spinner_style.clone()));
+        actions_pb.set_message("Calculating actions for player1");
         let actions_p1 = get_actions_for_player(&player1, &games_p1);
+        actions_pb.set_message("Calculating actions for player1");
         let actions_p2 = get_actions_for_player(&player2, &games_p2);
 
-        
         let actions_and_games = actions_p1
-        .iter()
-        .zip(games_p1)
-        .chain(actions_p2.iter().zip(games_p2));
-    
+            .iter()
+            .zip(games_p1)
+            .chain(actions_p2.iter().zip(games_p2));
+
         let mut games_to_remove = vec![];
-        let mut round_count = 0;
+        round_count += 1;
         for (action, game) in actions_and_games {
             // The key of the game on the games map given on creation
             let initial_idx = game.id;
@@ -176,9 +195,7 @@ fn play(player1: Player, player2: Player) -> Option<i32> {
             }
             assert!(game_mut.get_valid_moves_len_always_2().contains(action));
 
-
             game_mut.apply_move(action);
-            round_count += 1;
             if let Some(winner) = Backgammon::check_win_without_player(game_mut.board) {
                 if winner == player_p1 {
                     wins_p1 += 1.
@@ -206,8 +223,6 @@ fn play(player1: Player, player2: Player) -> Option<i32> {
     } else {
         None
     }
-
-
 }
 
 fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions> {
@@ -251,7 +266,10 @@ fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions>
             .par_iter()
             .map(|game| {
                 let valid_moves = game.get_valid_moves_len_always_2();
-                valid_moves.choose(&mut rand::thread_rng()).unwrap().clone()
+                match valid_moves.choose(&mut rand::thread_rng()) {
+                    Some(valid_move) => valid_move.clone(),
+                    None => vec![],
+                }
             })
             .collect(),
     }

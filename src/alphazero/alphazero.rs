@@ -64,7 +64,7 @@ impl AlphaZero {
 
         if let Some(m_path) = &config.model_path {
             match vs.load(m_path) {
-                Ok(_) => println!("\nSuccessfully loaded model on path: {}", m_path),
+                Ok(_) => println!("Successfully loaded model on path: {}", m_path),
                 Err(e) => panic!("failed to load model: {}", e),
             }
         }
