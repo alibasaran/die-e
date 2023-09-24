@@ -1,10 +1,9 @@
-use std::{path::Path, collections::HashSet};
+use std::{path::Path, collections::HashMap};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use rand::{thread_rng, seq::SliceRandom};
-use rand_distr::{WeightedIndex, Distribution};
-use tch::{nn::VarStore, Tensor};
+use tch::nn::VarStore;
 
 use crate::{constants::DEVICE, backgammon::Backgammon, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor_parallel}, MCTS_CONFIG};
 
@@ -44,7 +43,7 @@ impl AlphaZero {
         let mut vs_copy = VarStore::new(*DEVICE);
         vs_copy.copy(&vs).unwrap();
 
-        let is_model_better = match self.model_vs_model(&self.model, &ResNet::new(vs)) {
+        let is_model_better = match self.model_vs_model_parallel(&self.model, &ResNet::new(vs)) {
             Some(1) => true,
             Some(2) | None => false,
             Some(_) => unreachable!(),
@@ -70,7 +69,7 @@ impl AlphaZero {
      * Returns the model if a model does
      */
     fn model_vs_model(&self, model1: &ResNet, model2: &ResNet) -> Option<usize> {
-        let total_games = 100;
+        let total_games = 10;
         let mut model1_wins = 0;
 
         for i in 0..total_games {
@@ -114,9 +113,9 @@ impl AlphaZero {
                 }
             }
         }
-        if model1_wins >= 55 {
+        if model1_wins >= 6 {
             Some(1)
-        } else if model1_wins <= 45 {
+        } else if model1_wins <= 4 {
             Some(2)
         } else {
             None
@@ -140,7 +139,7 @@ impl AlphaZero {
         )
         .unwrap();
 
-        let mut games = (0..total_games)
+        let mut games: HashMap<usize, Backgammon> = HashMap::from_iter((0..total_games)
             .map(|idx| {
                 let mut bg = Backgammon::new();
                 if idx >= total_games / 2 {
@@ -148,11 +147,8 @@ impl AlphaZero {
                 }
                 bg.roll_die();
                 bg.id = idx;
-                bg
-            })
-            .collect_vec();
-
-        let mut ongoing_games_idxs: HashSet<usize> = HashSet::from_iter(0..total_games);
+                (idx, bg)
+            }));
 
         let pb_games = self.pb.add(
             ProgressBar::new(total_games as u64)
@@ -160,36 +156,50 @@ impl AlphaZero {
                 .with_style(sty.clone()),
         );
         let mut mcts_count = 0;
-        while !ongoing_games_idxs.is_empty() {
-            pb_games.set_position((games.len() - ongoing_games_idxs.len()).try_into().unwrap());
-            let ongoing_games = ongoing_games_idxs.iter().map(|idx| games[*idx]);
+        while !games.is_empty() {
+            pb_games.set_position((total_games - games.len()).try_into().unwrap());
+            pb_games.set_message(format!("on mcts run: {}", mcts_count + 1));
+
             // Partition states by player
             let (states_m1, states_m2): (Vec<Backgammon>, Vec<Backgammon>) =
-                ongoing_games.partition(|state| state.player == player_m1);
+                games.values().partition(|state| state.player == player_m1);
             let mut store1 = NodeStore::new();
             let mut store2 = NodeStore::new();
             // Process states by model depending on their player
             if !states_m1.is_empty() {
-                alpha_mcts_parallel(&mut store1, &states_m1, model1, None, true);
+                let pb_mcts_m1 = self.pb.add(
+                    ProgressBar::new(MCTS_CONFIG.iterations.try_into().unwrap())
+                    .with_message(format!("Model 1 AlphaMCTS - {} games", states_m1.len()))
+                    .with_style(sty.clone()),
+
+                );
+                alpha_mcts_parallel(&mut store1, &states_m1, model1, Some(pb_mcts_m1));
             }
             if !states_m2.is_empty() {
-                alpha_mcts_parallel(&mut store2, &states_m2, model2, None, true);
+                let pb_mcts_m2 = self.pb.add(
+                    ProgressBar::new(MCTS_CONFIG.iterations.try_into().unwrap())
+                        .with_message(format!("Model 2 AlphaMCTS - {} games", states_m2.len()))
+                        .with_style(sty.clone()),
+                );
+                alpha_mcts_parallel(&mut store2, &states_m2, model2, Some(pb_mcts_m2));
             }
             mcts_count += 1;
 
             // Get all root nodes in the store
             let mut roots = store1.get_root_nodes();
-            roots.extend(store2.get_root_nodes());
-
+            let store2_roots = store2.get_root_nodes();
+            roots.extend(store2_roots);
+            
             let prob_tensor = get_prob_tensor_parallel(&roots)
                 .pow_(1.0 / self.config.temperature)
                 .to_device(tch::Device::Cpu);
 
             let mut games_to_remove = vec![];
             for (processed_idx, &root) in roots.iter().enumerate() {
-                let curr_prob_tensor = prob_tensor.get(processed_idx as i64);
                 let initial_idx = root.state.id;
-                let state = games.get_mut(initial_idx).unwrap();
+                let curr_prob_tensor = prob_tensor.get(processed_idx as i64);
+
+                let state = games.get_mut(&initial_idx).unwrap();
 
                 // If prob tensor of the current state is all zeros then skip turn, has_children check just in case
                 if !curr_prob_tensor.sum(None).is_nonzero() || root.children.is_empty() {
@@ -199,7 +209,6 @@ impl AlphaZero {
 
                 // Select an action from probabilities
                 let selected_action = Self::weighted_select_tensor_idx(&curr_prob_tensor);
-
                 // Decode and play selected action
                 let decoded_action = state.decode(selected_action as u32);
                 state.apply_move(&decoded_action);
@@ -220,7 +229,7 @@ impl AlphaZero {
                 }
             }
             for i in games_to_remove.iter() {
-                ongoing_games_idxs.remove(i);
+                games.remove(i);
             }
         }
         let winrate = m1_wins / total_games as f64;

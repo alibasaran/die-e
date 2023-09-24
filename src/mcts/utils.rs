@@ -35,12 +35,17 @@ pub fn get_prob_tensor(
     let prob_sum = probs.sum(Some(DEFAULT_TYPE));
     Some(probs.div(prob_sum))
 }
-
+/**
+ * Given a vec of root nodes of size N
+ * returns a tensor of action pick probabilities N 1352
+ * where tensor of size 1352 contains mostly zeros with values on only the encoded values of the node's expandable moves
+ */
 pub fn get_prob_tensor_parallel(nodes: &[&Node]) -> Tensor {
     let mut result = Tensor::zeros([nodes.len() as i64, ACTION_SPACE_SIZE], (DEFAULT_TYPE, *DEVICE));
-    let (xs, ys, vals): (Vec<i32>, Vec<i32>, Vec<f32>) = multiunzip(nodes.iter().flat_map(|&node| {
+    let (xs, ys, vals): (Vec<i32>, Vec<i32>, Vec<f32>) = multiunzip(nodes.iter().enumerate().flat_map(|(processed_idx, &node)| {
         node.expandable_moves.iter().map(move |actions| {
-            (node.idx as i32, node.state.encode(actions) as i32, node.visits)
+            // Idx of tensor N_i, the expandable move encoded, the value
+            (processed_idx as i32, node.state.encode(actions) as i32, node.visits)
         })
     }));
     let xs_tensor = Tensor::from_slice(&xs);
@@ -48,18 +53,6 @@ pub fn get_prob_tensor_parallel(nodes: &[&Node]) -> Tensor {
     let vals_tensor = Tensor::from_slice(&vals).to_device(*DEVICE);
 
     let _ = result.index_put_(&[Some(xs_tensor), Some(ys_tensor)], &vals_tensor, false);
-    let sum = result.sum(None);
-    result / sum
-}
-
-pub fn turn_policy_to_probs_tensor(policy: &Tensor, node: &Node) -> Tensor {
-    let mut result = Tensor::zeros_like(policy);
-    let indices = node.expandable_moves.iter().map(|m| {
-        node.state.encode(m) as i32
-    }).collect_vec();
-    let indices_tensor = vec![Some(Tensor::from_slice(&indices))];
-    let values_to_put = policy.index(&indices_tensor);
-    let _ = result.index_put_(&indices_tensor, &values_to_put, false);
     let sum = result.sum(None);
     result / sum
 }
@@ -76,6 +69,18 @@ pub fn turn_policy_to_probs_tensor_parallel(store: &NodeStore, node_indices: Vec
     let selected_moves_tensor = policy * mask;
     let moves_sum = selected_moves_tensor.sum(None);
     selected_moves_tensor / moves_sum
+}
+
+pub fn turn_policy_to_probs_tensor(policy: &Tensor, node: &Node) -> Tensor {
+    let mut result = Tensor::zeros_like(policy);
+    let indices = node.expandable_moves.iter().map(|m| {
+        node.state.encode(m) as i32
+    }).collect_vec();
+    let indices_tensor = vec![Some(Tensor::from_slice(&indices))];
+    let values_to_put = policy.index(&indices_tensor);
+    let _ = result.index_put_(&indices_tensor, &values_to_put, false);
+    let sum = result.sum(None);
+    result / sum
 }
 
 pub fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {

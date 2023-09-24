@@ -1,38 +1,97 @@
-use std::{time::{SystemTime, UNIX_EPOCH}, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use die_e::{
     alphazero::{
         alphazero::{AlphaZero, AlphaZeroConfig, MemoryFragment},
         nnet::ResNet,
     },
-    backgammon::Backgammon,
-    constants::{DEVICE, N_SELF_PLAY_BATCHES, DEFAULT_TYPE},
+    backgammon::{Actions, Backgammon},
+    constants::{DEFAULT_TYPE, DEVICE, N_SELF_PLAY_BATCHES},
     mcts::{
         alpha_mcts::{alpha_mcts_parallel, TimeLogger},
         node_store::NodeStore,
-    }, versus::{Game, play_mcts_vs_model, save_game, load_game, print_game, play_random_vs_random, play_mcts_vs_random},
+        simple_mcts::mct_search,
+        utils::get_prob_tensor_parallel,
+    },
+    versus::{
+        load_game, play_mcts_vs_model, play_mcts_vs_random, play_random_vs_random, print_game,
+        save_game, Game,
+    },
 };
+use indicatif::ProgressBar;
 use itertools::Itertools;
-use tch::{Device, Kind, Tensor, nn::VarStore};
+use rand::seq::SliceRandom;
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
+use tch::{nn::VarStore, Device, Kind, Tensor};
 
 fn main() {
+    // Use 4 cores
+    rayon::ThreadPoolBuilder::new().num_threads(6).build_global().unwrap();
     // let mut vs = VarStore::new(*DEVICE);
     // vs.load("./models/best_model.ot").unwrap();
-    let model_path = Path::new("./models/trained_model.ot");
+    let model_path = Path::new("./models/best_model.ot");
     let config = AlphaZeroConfig {
         temperature: 1.,
         learn_iterations: 100,
-        self_play_iterations: 8,
+        self_play_iterations: 4,
         batch_size: 2048,
         num_epochs: 2,
-        model_path: Some(model_path.to_str().unwrap().to_string())
+        model_path: Some(model_path.to_str().unwrap().to_string()),
     };
     let mut az = AlphaZero::new(config);
+    // az.learn_parallel();
+    // 'outer_loop: for i in 0..10000 {
+    //     let mut state = Backgammon::new();
+    //     state.roll_die();
+    //     for i in 0..10000 {
+    //         let game_end = Backgammon::check_win_without_player(state.board);
+    //         println!("\nGame ended? => {:?}", game_end);
+    //         if game_end.is_some() {
+    //             state.display_board();
+    //             break;
+    //         }
+    //         println!("Roll {:?}", &state.roll);
+    //         let valid_moves = state.get_valid_moves_len_always_2();
+    //         println!("Valid moves: {:?}", valid_moves);
+    //         let encoded_valid_moves = valid_moves.iter().map(|m| state.encode(m)).collect_vec();
+    //         println!("Valid moves encoded: {:?}", encoded_valid_moves);
+    //         assert!(encoded_valid_moves.iter().all_unique());
+    //         if valid_moves.is_empty() {
+    //             state.display_board();
+    //             state.skip_turn();
+    //             continue
+    //         }
+    //         let next_move = az.get_next_move_for_state(&state);
+    //         println!("Result: {:?}", next_move);
+    //         state.apply_move(&next_move);
+    //         assert!(valid_moves.contains(&next_move));
+    //         state.is_valid();
+    //         if i >= 9999 {
+    //             println!("Game didn't end!");
+    //             state.display_board();
+    //             break 'outer_loop
+    //         }
+    //     }
+    // }
 
-    let random_net = ResNet::default();
+    let player1 = Player {
+        player_type: PlayerType::Model,
+        model: Some(az)
+    };
 
-    let result = az.play_vs_model(&random_net);
-    println!("Result: {:?}", result);
+    let player2 = Player {
+        player_type: PlayerType::MCTS,
+        model: None
+    };
+
+    let winner = play(player1, player2);
+
+    println!("{:?}", winner)
+    // println!("Result: {:?}", result)
 
     // let data_path1 = Path::new("./data/run-0/lrn-0/sp-0");
     // let mut memory = az.load_training_data(data_path1);
@@ -44,7 +103,6 @@ fn main() {
     // az.train(&mut memory);
 
     // let _ = az.save_current_model(model_path);
-
 }
 
 // Time state conversion using Backgammon::as_tensor
@@ -64,4 +122,137 @@ fn time_states_conv() {
         .squeeze_dim(1)
         .to_device(*DEVICE);
     timer.log("Inital states conversion");
+}
+
+enum PlayerType {
+    Model,
+    MCTS,
+    Random,
+}
+
+struct Player {
+    player_type: PlayerType,
+    model: Option<AlphaZero>,
+}
+
+fn play(player1: Player, player2: Player) -> Option<i32> {
+    let num_games = 100;
+    let round_limit = 400;
+    let mut games: HashMap<usize, Backgammon> = HashMap::from_iter((0..num_games).map(|idx| {
+        let mut bg = Backgammon::new();
+        if idx >= num_games / 2 {
+            bg.skip_turn();
+        }
+        bg.roll_die();
+        bg.id = idx;
+        (idx, bg)
+    }));
+
+    let mut wins_p1 = 0.;
+    let player_p1 = -1;
+
+    while !games.is_empty() {
+        let (games_p1, games_p2): (Vec<Backgammon>, Vec<Backgammon>) =
+            games.values().partition(|state| state.player == player_p1);
+
+        let actions_p1 = get_actions_for_player(&player1, &games_p1);
+        let actions_p2 = get_actions_for_player(&player2, &games_p2);
+
+        
+        let actions_and_games = actions_p1
+        .iter()
+        .zip(games_p1)
+        .chain(actions_p2.iter().zip(games_p2));
+    
+        let mut games_to_remove = vec![];
+        let mut round_count = 0;
+        for (action, game) in actions_and_games {
+            // The key of the game on the games map given on creation
+            let initial_idx = game.id;
+            let game_mut = games.get_mut(&initial_idx).unwrap();
+            if action.is_empty() {
+                game_mut.skip_turn();
+                continue;
+            }
+            assert!(game_mut.get_valid_moves_len_always_2().contains(action));
+
+
+            game_mut.apply_move(action);
+            round_count += 1;
+            if let Some(winner) = Backgammon::check_win_without_player(game_mut.board) {
+                if winner == player_p1 {
+                    wins_p1 += 1.
+                }
+                games_to_remove.push(initial_idx);
+            }
+            if round_count >= round_limit {
+                games_to_remove.push(initial_idx);
+                let choices = vec![-1, 1];
+                let rand_winner = choices.choose(&mut rand::thread_rng()).unwrap();
+                if *rand_winner == player_p1 {
+                    wins_p1 += 1.
+                }
+            }
+        }
+        for game_idx in games_to_remove {
+            games.remove(&game_idx);
+        }
+    }
+    let winrate = wins_p1 / num_games as f64;
+    if winrate >= 0.55 {
+        Some(1)
+    } else if wins_p1 <= 0.45 {
+        Some(2)
+    } else {
+        None
+    }
+
+
+}
+
+fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions> {
+    if games.is_empty() {
+        return vec![];
+    }
+
+    match player.player_type {
+        PlayerType::Model => {
+            let az = player.model.as_ref().unwrap();
+            let mut store = NodeStore::new();
+            alpha_mcts_parallel(&mut store, games, &az.model, Some(ProgressBar::hidden()));
+            let roots = store.get_root_nodes();
+            let prob_tensor = get_prob_tensor_parallel(&roots)
+                .pow_(1.0 / az.config.temperature)
+                .to_device(tch::Device::Cpu);
+
+            roots
+                .iter()
+                .enumerate()
+                .map(|(processed_idx, &root)| {
+                    let curr_prob_tensor = prob_tensor.get(processed_idx as i64);
+
+                    // If prob tensor of the current state is all zeros then skip turn, has_children check just in case
+                    if !curr_prob_tensor.sum(None).is_nonzero() || root.children.is_empty() {
+                        return vec![];
+                    }
+
+                    // Select an action from probabilities
+                    let selected_action = AlphaZero::weighted_select_tensor_idx(&curr_prob_tensor);
+                    // Decode and play selected action
+                    root.state.decode(selected_action as u32)
+                })
+                .collect_vec()
+        }
+        PlayerType::MCTS => games
+            .par_iter()
+            .map(|game| mct_search(*game, game.player))
+            .collect(),
+        PlayerType::Random => games
+            .par_iter()
+            .map(|game| {
+                let valid_moves = game.get_valid_moves_len_always_2();
+                valid_moves.choose(&mut rand::thread_rng()).unwrap().clone()
+            })
+            .collect(),
+    }
 }

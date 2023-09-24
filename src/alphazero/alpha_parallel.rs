@@ -126,14 +126,15 @@ impl AlphaZero {
                     .with_finish(indicatif::ProgressFinish::AndClear),
             );
             // Fill store with games
-            alpha_mcts_parallel(&mut store, &state_to_process, &self.model, Some(mcts_pb), false);
+            alpha_mcts_parallel(&mut store, &state_to_process, &self.model, Some(mcts_pb));
             mcts_runs += 1;
             // processed idx: the index of the state in remaining processed states
             // init_idx: the index of the state in the initial creation of the states vector
             // state: the backgammon state itself
             // states_to_remove: list of finished states to remove after each iteration
             let mut states_to_remove = vec![];
-            let roots = (0..states.len()).map(|i| store.get_node_ref(i)).collect_vec();// We can do store.get_root_nodes(); as well but since we know the first 0..states.len() are the roots it is faster
+            // We can do store.get_root_nodes(); as well but since we know the first 0..states.len() are the roots it is faster
+            let roots = (0..states.len()).map(|i| store.get_node_ref(i)).collect_vec();
             let prob_tensor = get_prob_tensor_parallel(&roots)
                 .pow_(1.0 / self.config.temperature) // Apply temperature
                 .to_device(tch::Device::Cpu); // Move to CPU for faster access

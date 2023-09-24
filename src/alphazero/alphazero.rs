@@ -39,9 +39,9 @@ pub struct AlphaZeroConfig {
 }
 
 pub struct AlphaZero {
-    pub(crate) model: ResNet,
+    pub model: ResNet,
     pub(crate) optimizer: Optimizer,
-    pub(crate) config: AlphaZeroConfig,
+    pub config: AlphaZeroConfig,
     pub(crate) pb: MultiProgress,
 }
 #[derive(Debug)]
@@ -59,23 +59,17 @@ torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0
 impl AlphaZero {
     pub fn new(config: AlphaZeroConfig) -> Self {
         let mut vs = nn::VarStore::new(*DEVICE);
-        
+
+        println!("Initializing AlphaZero...\nDevice: {:?}\n{:?}\n{:?}", *DEVICE, &config, MCTS_CONFIG);
+
         if let Some(m_path) = &config.model_path {
-           let _ = vs.load(m_path);
+            match vs.load(m_path) {
+                Ok(_) => println!("\nSuccessfully loaded model on path: {}", m_path),
+                Err(e) => panic!("failed to load model: {}", e),
+            }
         }
 
         let opt = Adam::default().wd(1e-4).build(&vs, 1e-4).unwrap();
-
-        println!(
-            "\n
-        Device: {:?}
-        AlphaZero initialized:
-        \n{:?}
-        \nMCTS Config:
-        \n{:?}
-        ",
-            *DEVICE, &config, MCTS_CONFIG
-        );
 
         AlphaZero {
             model: ResNet::new(vs),
