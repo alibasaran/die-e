@@ -19,7 +19,7 @@ use die_e::{
     },
     versus::{
         load_game, play_mcts_vs_model, play_mcts_vs_random, play_random_vs_random, print_game,
-        save_game, Game,
+        save_game, Game, Agent, Turn,
     },
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -82,12 +82,12 @@ fn main() {
     // }
 
     let player1 = Player {
-        player_type: PlayerType::Model,
+        player_type: Agent::Model,
         model: Some(az),
     };
 
     let player2 = Player {
-        player_type: PlayerType::Random,
+        player_type: Agent::Random,
         model: None,
     };
 
@@ -135,18 +135,19 @@ enum PlayerType {
 }
 
 struct Player {
-    player_type: PlayerType,
+    player_type: Agent,
     model: Option<AlphaZero>,
 }
 
 #[derive(Debug)]
 struct PlayResult {
-    player1: PlayerType,
-    player2: PlayerType,
+    player1: Agent,
+    player2: Agent,
     wins_p1: usize,
     wins_p2: usize,
     n_games: usize,
-    winrate: f64, // TODO: games, list of all games played during the session
+    winrate: f64,
+    games: Vec<Game> // TODO: games, list of all games played during the session
 }
 
 fn play(player1: Player, player2: Player) -> PlayResult {
@@ -159,16 +160,18 @@ fn play(player1: Player, player2: Player) -> PlayResult {
 
     let num_games = 100;
     let round_limit = 400;
-    let mut games: HashMap<usize, Backgammon> = HashMap::from_iter((0..num_games).map(|idx| {
+    let mut games: HashMap<usize, (Backgammon, Game)> = HashMap::from_iter((0..num_games).map(|idx| {
         let mut bg = Backgammon::new();
+        let game = Game::new(player1.player_type.clone(), player2.player_type.clone(), bg);
         if idx >= num_games / 2 {
             bg.skip_turn();
         }
         bg.roll_die();
         bg.id = idx;
-        (idx, bg)
+        (idx, (bg, game))
     }));
 
+    let mut games_played: Vec<Game> = vec![];
     let mut wins_p1 = 0.;
     let player_p1 = -1;
 
@@ -180,7 +183,7 @@ fn play(player1: Player, player2: Player) -> PlayResult {
         pb_games.set_position((num_games - games.len()) as u64);
         pb_games.set_message(format!("On round: {}", round_count));
         let (games_p1, games_p2): (Vec<Backgammon>, Vec<Backgammon>) =
-            games.values().partition(|state| state.player == player_p1);
+            games.values().map(|x| x.0).partition(|state| state.player == player_p1);
 
         let spinner_style =
             ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg}").unwrap();
@@ -205,7 +208,14 @@ fn play(player1: Player, player2: Player) -> PlayResult {
         for (action, game) in actions_and_games {
             // The key of the game on the games map given on creation
             let initial_idx = game.id;
-            let game_mut = games.get_mut(&initial_idx).unwrap();
+            let (game_mut, curr_game) = games.get_mut(&initial_idx).unwrap();
+
+            if game_mut.player == -1 {
+                curr_game.turns.push(Turn { roll: game_mut.roll, player: player1.player_type.clone(), action: action.clone() });
+            } else {
+                curr_game.turns.push(Turn { roll: game_mut.roll, player: player2.player_type.clone(), action: action.clone() });
+            }
+
             if action.is_empty() {
                 game_mut.skip_turn();
                 continue;
@@ -215,7 +225,10 @@ fn play(player1: Player, player2: Player) -> PlayResult {
             game_mut.apply_move(action);
             if let Some(winner) = Backgammon::check_win_without_player(game_mut.board) {
                 if winner == player_p1 {
+                    curr_game.winner = player1.player_type.clone();
                     wins_p1 += 1.
+                } else {
+                    curr_game.winner = player2.player_type.clone();
                 }
                 games_to_remove.push(initial_idx);
             }
@@ -224,12 +237,16 @@ fn play(player1: Player, player2: Player) -> PlayResult {
                 let choices = vec![-1, 1];
                 let rand_winner = choices.choose(&mut rand::thread_rng()).unwrap();
                 if *rand_winner == player_p1 {
+                    curr_game.winner = player1.player_type.clone();
                     wins_p1 += 1.
+                } else {
+                    curr_game.winner = player2.player_type.clone();
                 }
             }
         }
         for game_idx in games_to_remove {
-            games.remove(&game_idx);
+            let (_, game) = games.remove(&game_idx).unwrap();
+            games_played.push(game);
         }
     }
     let winrate = wins_p1 / num_games as f64;
@@ -241,6 +258,7 @@ fn play(player1: Player, player2: Player) -> PlayResult {
         wins_p2: num_games - wins_p1,
         winrate,
         n_games: num_games,
+        games: games_played
     }
 }
 
@@ -250,7 +268,7 @@ fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions>
     }
 
     match player.player_type {
-        PlayerType::Model => {
+        Agent::Model => {
             let az = player.model.as_ref().unwrap();
             let mut store = NodeStore::new();
             alpha_mcts_parallel(&mut store, games, &az.model, Some(ProgressBar::hidden()));
@@ -277,11 +295,11 @@ fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions>
                 })
                 .collect_vec()
         }
-        PlayerType::MCTS => games
+        Agent::Mcts => games
             .par_iter()
             .map(|game| mct_search(*game, game.player))
             .collect(),
-        PlayerType::Random => games
+        Agent::Random => games
             .par_iter()
             .map(|game| {
                 let valid_moves = game.get_valid_moves_len_always_2();
@@ -291,5 +309,6 @@ fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions>
                 }
             })
             .collect(),
+        Agent::None => unreachable!(),
     }
 }

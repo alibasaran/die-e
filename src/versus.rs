@@ -18,18 +18,18 @@ pub enum Agent {
     Random, Mcts, Model, None
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct Turn {
-    roll: (u8, u8),
-    action: Vec<(i8, i8)>,
-    player: Agent
+pub struct Turn {
+    pub roll: (u8, u8),
+    pub action: Vec<(i8, i8)>,
+    pub player: Agent
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Game {
     id: String,
     player1: Agent,
     player2: Agent,
-    turns: Vec<Turn>,
-    winner: Agent,
+    pub turns: Vec<Turn>,
+    pub winner: Agent,
     initial_state: Backgammon 
 }
 
