@@ -36,8 +36,13 @@ fn main() {
         .unwrap();
     // let mut vs = VarStore::new(*DEVICE);
     // vs.load("./models/best_model.ot").unwrap();
-    let bg = Backgammon::new();
-    println!("\n{}", bg.to_pretty_str())
+
+    let mut bg = Backgammon::new();
+
+    bg.board.0[12] = 10;
+    
+    println!("{}", bg.to_pretty_str())
+
     // let model_path = Path::new("./models/best_model.ot");
     // let config = AlphaZeroConfig {
     //     temperature: 1.,
@@ -48,7 +53,7 @@ fn main() {
     //     model_path: Some(model_path.to_str().unwrap().to_string()),
     // };
     // let mut az = AlphaZero::new(config);
-    // // az.learn_parallel();
+    // az.learn_parallel();
     // // 'outer_loop: for i in 0..10000 {
     // //     let mut state = Backgammon::new();
     // //     state.roll_die();

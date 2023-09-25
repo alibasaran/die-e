@@ -105,7 +105,7 @@ impl Backgammon {
         let board_len = board.len();
 
         let board_bot = (0..board_len/2).rev().map(|i| i.to_string()).collect_vec();
-        let board_top = (board_len/2..board_len).rev().map(|i| i.to_string()).collect_vec();
+        let board_top = (board_len/2..board_len).map(|i| i.to_string()).collect_vec();
         let mut inner_board = vec![];
         
         for i in 1..=6 {
@@ -123,6 +123,8 @@ impl Backgammon {
             }
             inner_board.push(row)
         }
+
+        inner_board.push(vec![String::from(" "); inner_board[0].len()]);
 
         for i in (1..=6).rev() {
             let mut row = vec![];

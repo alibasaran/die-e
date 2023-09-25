@@ -18,7 +18,7 @@ pub mod constants {
     pub const DIRICHLET_EPSILON: f32 = 0.25;
 
     pub const ACTION_SPACE_SIZE: i64 = 1352;
-    pub const N_SELF_PLAY_BATCHES: usize = 128;
+    pub const N_SELF_PLAY_BATCHES: usize = 256;
 
     pub const DEFAULT_TYPE: tch::kind::Kind = tch::Kind::Float;
 
