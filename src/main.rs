@@ -1,14 +1,11 @@
 use std::{
     collections::HashMap,
-    time::{Duration},
+    time::Duration,
 };
 
 use die_e::{
-    alphazero::{
-        alphazero::{AlphaZero},
-    },
+    alphazero::alphazero::AlphaZero,
     backgammon::{Actions, Backgammon},
-    constants::{DEVICE},
     mcts::{
         alpha_mcts::{alpha_mcts_parallel, TimeLogger},
         node_store::NodeStore,
@@ -17,13 +14,13 @@ use die_e::{
     },
     versus::{
         Game, Agent, Turn,
-    },
+    }, constants::DEVICE,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use tch::{Tensor};
+use tch::Tensor;
 
 fn main() {
     // Use 4 cores

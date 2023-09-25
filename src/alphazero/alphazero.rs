@@ -1,5 +1,5 @@
 
-use indicatif::{MultiProgress};
+use indicatif::MultiProgress;
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
 
@@ -18,9 +18,7 @@ use super::nnet::ResNet;
 use crate::{
     backgammon::{Backgammon, Actions},
     constants::{DEFAULT_TYPE, DEVICE},
-    mcts::{
-        alpha_mcts::{alpha_mcts},
-    },
+    mcts::alpha_mcts::alpha_mcts,
     MCTS_CONFIG,
 };
 

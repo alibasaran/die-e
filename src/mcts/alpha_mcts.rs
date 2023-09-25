@@ -4,7 +4,6 @@ use std::{cmp::Ordering, collections::HashSet, time::{SystemTime, UNIX_EPOCH}};
 use indicatif::{ProgressIterator, ProgressBar};
 use itertools::Itertools;
 
-use rayon::prelude::{ParallelIterator};
 use tch::Tensor;
 
 use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MCTS_CONFIG};
