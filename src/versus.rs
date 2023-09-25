@@ -90,7 +90,7 @@ pub fn print_game(directory: &str, filename: &str, wait_user_input: bool) {
         println!("Action: {:?}", turn.action);
         current_state.apply_move(&turn.action);
         println!("State after action has been played:");
-        current_state.display_board();
+        current_state.to_pretty_str();
 
         if wait_user_input {
             println!("Press Enter to continue...");
