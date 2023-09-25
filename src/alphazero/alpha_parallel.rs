@@ -3,7 +3,7 @@ use std::{fs, path::Path, collections::HashMap};
 use indicatif::{ProgressStyle, ProgressBar};
 use itertools::Itertools;
 
-use crate::{constants::N_SELF_PLAY_BATCHES, backgammon::Backgammon, MCTS_CONFIG, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel, utils::get_prob_tensor_parallel}};
+use crate::{constants::N_SELF_PLAY_BATCHES, backgammon::backgammon_logic::Backgammon, MCTS_CONFIG, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel, utils::get_prob_tensor_parallel}};
 
 use super::alphazero::{AlphaZero, MemoryFragment};
 use nanoid::nanoid;

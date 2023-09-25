@@ -1,4 +1,4 @@
-use crate::{backgammon::Backgammon, mcts::alpha_mcts::alpha_mcts};
+use crate::{backgammon::backgammon_logic::Backgammon, mcts::alpha_mcts::alpha_mcts};
 
 use super::alphazero::{AlphaZero, MemoryFragment};
 

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 
 
-use crate::{backgammon::{Actions, Backgammon}, MCTS_CONFIG};
+use crate::{backgammon::backgammon_logic::{Actions, Backgammon}, MCTS_CONFIG};
 
 use super::{node::Node, node_store::NodeStore};
 

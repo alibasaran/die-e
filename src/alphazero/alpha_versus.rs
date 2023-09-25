@@ -5,7 +5,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rand::{thread_rng, seq::SliceRandom};
 use tch::nn::VarStore;
 
-use crate::{constants::DEVICE, backgammon::Backgammon, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor_parallel}, MCTS_CONFIG};
+use crate::{constants::DEVICE, backgammon::backgammon_logic::Backgammon, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor_parallel}, MCTS_CONFIG};
 
 use super::{alphazero::AlphaZero, nnet::ResNet};
 

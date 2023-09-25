@@ -1,5 +1,5 @@
 use crate::MCTS_CONFIG;
-use crate::backgammon::{Actions, Backgammon};
+use crate::backgammon::backgammon_logic::{Actions, Backgammon};
 use rand::{seq::SliceRandom, Rng};
 use tch::Tensor;
 use std::ops::Div;

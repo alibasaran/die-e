@@ -1,4 +1,4 @@
-use die_e::backgammon::Backgammon;
+use die_e::backgammon::backgammon_logic::Backgammon;
 use std::vec;
 
 #[cfg(test)]
@@ -249,7 +249,7 @@ mod get_next_state {
 }
 
 mod get_normal_moves {
-    use die_e::backgammon::ActionNode;
+    use die_e::backgammon::backgammon_logic::ActionNode;
 
     use super::*;
 

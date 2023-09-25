@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use tch::Tensor;
 
-use crate::{backgammon::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MCTS_CONFIG};
+use crate::{backgammon::backgammon_logic::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MCTS_CONFIG};
 
 use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 

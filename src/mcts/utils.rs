@@ -1,11 +1,10 @@
 use std::ops::Div;
 
 use itertools::{multiunzip, Itertools};
-use rand::seq::SliceRandom;
 use tch::Tensor;
 
 use crate::{
-    backgammon::{Actions, Backgammon},
+    backgammon::backgammon_logic::Backgammon,
     constants::{ACTION_SPACE_SIZE, DEVICE, DEFAULT_TYPE},
 };
 
@@ -35,6 +34,7 @@ pub fn get_prob_tensor(
     let prob_sum = probs.sum(Some(DEFAULT_TYPE));
     Some(probs.div(prob_sum))
 }
+
 /**
  * Given a vec of root nodes of size N
  * returns a tensor of action pick probabilities N 1352
@@ -100,15 +100,4 @@ pub fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {
     }
 
     values
-}
-
-pub fn random_play(bg: &Backgammon) -> Actions {
-    let mut rng = rand::thread_rng();
-    let moves = bg.get_valid_moves();
-
-    if moves.is_empty() {
-        return vec![];
-    }
-
-    return moves.choose(&mut rng).unwrap().to_vec();
 }

@@ -2,7 +2,7 @@ extern crate proptest;
 
 #[cfg(test)]
 mod encoding_single_and_zero_moves {
-    use die_e::backgammon::Backgammon;
+    use die_e::backgammon::backgammon_logic::Backgammon;
     use test_case::test_case;
 
     #[test_case((2, 1), -1, vec![]; "original_should_be_same_as_decoded_empty_actions")]
@@ -34,7 +34,7 @@ mod encoding_single_and_zero_moves {
 
 #[cfg(test)]
 mod encoding_double_moves {
-    use die_e::backgammon::Backgammon;
+    use die_e::backgammon::backgammon_logic::Backgammon;
     use test_case::test_case;
 
     #[test_case((2, 1), -1, vec![(23, 21), (5, 4)]; "original_should_be_same_as_decoded_normal_move_high_roll_first_player_1")]
@@ -65,7 +65,7 @@ mod encoding_double_moves {
 
 #[cfg(test)]
 mod encoding_exceptional_cases {
-    use die_e::backgammon::Backgammon;
+    use die_e::backgammon::backgammon_logic::Backgammon;
     use test_case::test_case;
 
     #[test_case((6, 1), -1, vec![(-1, 18), (18, 17)]; "original_should_be_same_as_decoded_bar_and_normal_hrf_player_1")]

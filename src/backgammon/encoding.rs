@@ -1,6 +1,6 @@
-use crate::backgammon::Actions;
+use crate::backgammon::backgammon_logic::Actions;
 
-use super::Backgammon;
+use super::backgammon_logic::Backgammon;
 
 impl Backgammon {
     pub fn encode(&self, actions: &Actions) -> u32 {

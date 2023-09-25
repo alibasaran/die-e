@@ -16,7 +16,7 @@ use tch::{
 use super::nnet::ResNet;
 
 use crate::{
-    backgammon::{Backgammon, Actions},
+    backgammon::backgammon_logic::{Backgammon, Actions},
     constants::{DEFAULT_TYPE, DEVICE},
     mcts::alpha_mcts::alpha_mcts,
     MCTS_CONFIG,

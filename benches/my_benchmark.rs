@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use die_e::{
-    backgammon::Backgammon,
+    backgammon::backgammon_logic::Backgammon,
     constants::{DEVICE},
     mcts::{node_store::NodeStore, node::Node, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs}},
 };

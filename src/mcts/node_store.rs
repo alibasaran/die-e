@@ -2,7 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::backgammon::{Backgammon, Actions};
+use crate::backgammon::backgammon_logic::{Backgammon, Actions};
 
 use super::node::Node;
 
