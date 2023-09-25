@@ -13,7 +13,7 @@ impl Backgammon {
         
         // get the roll and the high and low roll values
         let roll = self.roll;
-        let (high_roll, low_roll) = if roll.0 > roll.1 { (roll.0, roll.1) } else { (roll.1, roll.0) };
+        let (_high_roll, low_roll) = if roll.0 > roll.1 { (roll.0, roll.1) } else { (roll.1, roll.0) };
         let mut low_roll_first_flag = false;
         let mut low_roll_second_flag = false;
     

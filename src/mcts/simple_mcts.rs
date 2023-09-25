@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use indicatif::ProgressIterator;
+
 
 use crate::{backgammon::{Actions, Backgammon}, MCTS_CONFIG};
 
@@ -17,7 +17,7 @@ pub fn mct_search(state: Backgammon, player: i8) -> Actions {
     let roll = state.roll;
     let root_node_idx = store.add_node(state, None, None, Some(roll), 0.0);
     // let pb_iter = .progress().with_message("MCTS");
-    for _ in (0..MCTS_CONFIG.iterations) {
+    for _ in 0..MCTS_CONFIG.iterations {
         // Don't forget to save the node later into the store
         let idx = select_leaf_node(root_node_idx, &store);
         let mut selected_node = store.get_node(idx);

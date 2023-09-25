@@ -6,7 +6,7 @@ use tch::Tensor;
 
 pub mod encoding;
 
-use crate::constants::{DEVICE, DEFAULT_TYPE};
+use crate::constants::{DEFAULT_TYPE};
 
 // (the board itself, pieces_hit, pieces_collected)
 pub type Board = ([i8; 24], (u8, u8), (u8, u8));

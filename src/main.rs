@@ -1,16 +1,14 @@
 use std::{
     collections::HashMap,
-    path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration},
 };
 
 use die_e::{
     alphazero::{
-        alphazero::{AlphaZero, AlphaZeroConfig, MemoryFragment},
-        nnet::ResNet,
+        alphazero::{AlphaZero},
     },
     backgammon::{Actions, Backgammon},
-    constants::{DEFAULT_TYPE, DEVICE, N_SELF_PLAY_BATCHES},
+    constants::{DEVICE},
     mcts::{
         alpha_mcts::{alpha_mcts_parallel, TimeLogger},
         node_store::NodeStore,
@@ -18,15 +16,14 @@ use die_e::{
         utils::get_prob_tensor_parallel,
     },
     versus::{
-        load_game, play_mcts_vs_model, play_mcts_vs_random, play_random_vs_random, print_game,
-        save_game, Game, Agent, Turn,
+        Game, Agent, Turn,
     },
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use tch::{nn::VarStore, Device, Kind, Tensor};
+use tch::{Tensor};
 
 fn main() {
     // Use 4 cores

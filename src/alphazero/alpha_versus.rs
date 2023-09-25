@@ -1,7 +1,7 @@
 use std::{path::Path, collections::HashMap};
 
 use indicatif::{ProgressBar, ProgressStyle};
-use itertools::Itertools;
+
 use rand::{thread_rng, seq::SliceRandom};
 use tch::nn::VarStore;
 

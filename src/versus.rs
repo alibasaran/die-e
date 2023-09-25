@@ -3,7 +3,7 @@ use rand::{seq::SliceRandom, thread_rng};
 use serde::{Serialize, Deserialize};
 use nanoid::nanoid;
 
-use crate::{backgammon::Backgammon, mcts::{simple_mcts::mct_search, utils::random_play, alpha_mcts::alpha_mcts}, alphazero::{nnet::ResNet, alphazero::{AlphaZeroConfig, AlphaZero}}};
+use crate::{backgammon::Backgammon, mcts::{simple_mcts::mct_search, utils::random_play}, alphazero::{alphazero::{AlphaZero}}};
 
 
 /*
@@ -235,7 +235,7 @@ pub fn play_random_vs_random() -> Game {
     
     let mut game: Game = Game::new(player1.clone(), player2.clone(), initial_state);
     let mut current_state = initial_state;
-    let mut curr_player = player1.clone();
+    let curr_player = player1.clone();
 
     println!("Player 1: {:?}, Player 2: {:?}", player1, player2);
 

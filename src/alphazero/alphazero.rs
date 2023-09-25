@@ -1,29 +1,25 @@
-use arrayvec::ArrayVec;
-use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
+
+use indicatif::{MultiProgress};
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
-use serde::Serialize;
+
 use std::{
     cmp::min,
-    collections::{HashMap, HashSet},
-    fs,
     path::Path,
 };
 use tch::{
-    nn::{self, Adam, Optimizer, OptimizerConfig, VarStore},
+    nn::{self, Adam, Optimizer, OptimizerConfig},
     Tensor,
 };
-use nanoid::nanoid;
+
 
 use super::nnet::ResNet;
 
 use crate::{
     backgammon::{Backgammon, Actions},
-    constants::{DEFAULT_TYPE, DEVICE, N_SELF_PLAY_BATCHES},
+    constants::{DEFAULT_TYPE, DEVICE},
     mcts::{
-        alpha_mcts::{alpha_mcts, alpha_mcts_parallel, TimeLogger},
-        node_store::NodeStore,
-        utils::{get_prob_tensor, get_prob_tensor_parallel},
+        alpha_mcts::{alpha_mcts},
     },
     MCTS_CONFIG,
 };

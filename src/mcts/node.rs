@@ -153,7 +153,7 @@ impl Node {
     pub fn alpha_expand(&mut self, store: &mut NodeStore, policy: Vec<f32>) {
         for action in self.expandable_moves.iter() {
             let next_state = Backgammon::get_next_state(self.state.board, action, self.state.player);
-            let encoded_value = self.state.encode(&action);
+            let encoded_value = self.state.encode(action);
             let value = policy[encoded_value as usize];
 
             let child_idx = if self.state.roll.0 != self.state.roll.1 || self.state.is_second_play {
