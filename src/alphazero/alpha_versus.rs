@@ -41,13 +41,14 @@ impl AlphaZero {
         }
         // Create vs copy because we move the vs into the ResNet
         let is_model_better = match self.model_vs_model_parallel(&self.model, &ResNet::new(vs_best_model)) {
-            Some(1) => true,
-            Some(2) | None => false,
+            Some(1) => {self.pb.println("new model was better!").unwrap(); true},
+            Some(2) => {self.pb.println("current best model is still better!").unwrap(); false},
+            None => {self.pb.println("new model vs current best was inconclusive, keeping current best!").unwrap(); false}
             Some(_) => unreachable!(),
         };
         if is_model_better {
             match self.model.vs.save(best_model_path) {
-                Ok(_) => self.pb.println("new model was better! saved").unwrap(),
+                Ok(_) => self.pb.println("saved new best model").unwrap(),
                 Err(_) => self
                     .pb
                     .println("new model was better! couldn't save :(")

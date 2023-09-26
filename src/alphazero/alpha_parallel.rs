@@ -12,7 +12,9 @@ use nanoid::nanoid;
 impl AlphaZero {
     
     pub fn learn_parallel(&mut self) {
-        let runpath_base = format!("./data/run-{}", nanoid!());
+        let run_id = nanoid!();
+        let runpath_base = format!("./data/run-{}", &run_id);
+        println!("Staring up run with run_id: {}", &run_id);
         let _ = fs::create_dir(&runpath_base);
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",

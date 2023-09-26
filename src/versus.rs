@@ -147,13 +147,13 @@ pub fn print_out_game(directory: &str, filename: &str) {
     println!("Winner: {:?}", game.winner)
 }
 
-struct Player {
+pub struct Player {
     player_type: Agent,
     model: Option<AlphaZero>,
 }
 
 #[derive(Debug)]
-struct PlayResult {
+pub struct PlayResult {
     player1: Agent,
     player2: Agent,
     wins_p1: usize,
@@ -163,7 +163,7 @@ struct PlayResult {
     games: Vec<Game>,
 }
 
-fn play(player1: Player, player2: Player) -> PlayResult {
+pub fn play(player1: Player, player2: Player) -> PlayResult {
     println!("\nStarting play!");
     let pb_play = MultiProgress::new();
     let sty = ProgressStyle::with_template(

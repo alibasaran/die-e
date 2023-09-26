@@ -1,11 +1,12 @@
 
+use config::{Value, Config};
 use indicatif::MultiProgress;
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
 
 use std::{
     cmp::min,
-    path::Path,
+    path::{Path, PathBuf}, collections::HashMap,
 };
 use tch::{
     nn::{self, Adam, Optimizer, OptimizerConfig},
@@ -29,8 +30,32 @@ pub struct AlphaZeroConfig {
     pub self_play_iterations: usize,
     pub num_epochs: usize,
     pub batch_size: usize,
-    pub model_path: Option<String>
+    pub model_path: Option<PathBuf>
 }
+
+pub const AZ_CONFIG_KEYS: [&str; 6] = [
+    "temperature",
+    "learn_iterations",
+    "self_play_iterations",
+    "num_epochs",
+    "batch_size",
+    "model_path",
+];
+
+impl AlphaZeroConfig {
+    pub fn from_config(conf: &config::Config) -> Result<Self, config::ConfigError> {
+        Ok(AlphaZeroConfig {
+            temperature: conf.get_float("temperature")?,
+            learn_iterations: conf.get_int("learn_iterations")? as usize,
+            self_play_iterations: conf.get_int("self_play_iterations")? as usize,
+            num_epochs: conf.get_int("num_epochs")? as usize,
+            batch_size: conf.get_int("batch_size")? as usize,
+            model_path: None,
+        })
+    }
+
+}
+
 
 pub struct AlphaZero {
     pub model: ResNet,
@@ -56,11 +81,19 @@ impl AlphaZero {
 
         println!("Initializing AlphaZero...\nDevice: {:?}\n{:?}\n{:?}", *DEVICE, &config, MCTS_CONFIG);
 
-        if let Some(m_path) = &config.model_path {
-            match vs.load(m_path) {
-                Ok(_) => println!("Successfully loaded model on path: {}", m_path),
-                Err(e) => panic!("failed to load model: {}", e),
-            }
+        match &config.model_path {
+            Some(m_path) => match vs.load(m_path) {
+                Ok(_) => println!("Successfully loaded model on path: {}", m_path.to_str().unwrap()),
+                Err(e) => panic!("failed to load model: (might be a large error log) \n{}", e),
+            },
+            None if Path::new("./models/best_model").exists() => {
+                let bm_path = Path::new("./models/best_model");
+                match vs.load(bm_path) {
+                    Ok(_) => println!("Successfully loaded best model"),
+                    Err(e) => panic!("failed to load best model: {}", e),
+                }
+            },
+            None => println!("Starting to train model from scratch!")
         }
 
         let opt = Adam::default().wd(1e-4).build(&vs, 1e-4).unwrap();

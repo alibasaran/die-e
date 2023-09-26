@@ -1,0 +1,7 @@
+{
+    "temperature": 1.0,
+    "learn_iterations": 100,
+    "self_play_iterations": 4,
+    "num_epochs": 2,
+    "batch_size": 2048
+}

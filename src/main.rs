@@ -1,113 +1,99 @@
+use std::{
+    collections::HashMap,
+    time::Duration, path::{Path, PathBuf},
+};
+
+use config::Config;
 use die_e::{
     backgammon::backgammon_logic::Backgammon,
     mcts::alpha_mcts::TimeLogger,
-    constants::DEVICE,
+    constants::DEVICE, alphazero::alphazero::{AlphaZero, AlphaZeroConfig, AZ_CONFIG_KEYS},
 };
 use itertools::Itertools;
 use tch::Tensor;
 
-fn main() {
-    // Use 4 cores
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(6)
-        .build_global()
-        .unwrap();
-    // let mut vs = VarStore::new(*DEVICE);
-    // vs.load("./models/best_model.ot").unwrap();
+use clap::{Parser, Subcommand};
 
-    let mut bg = Backgammon::new();
+#[derive(Parser)]
+struct Args {
+    /// Sets a custom config file
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
 
-    bg.board.0[12] = 10;
-    
-    println!("{}", bg.to_pretty_str())
+    // number of cpu's to use while learning, default is half of total cpus
+    #[arg(short, long)]
+    n_cpus: Option<usize>,
 
-    // let model_path = Path::new("./models/best_model.ot");
-    // let config = AlphaZeroConfig {
-    //     temperature: 1.,
-    //     learn_iterations: 100,
-    //     self_play_iterations: 4,
-    //     batch_size: 2048,
-    //     num_epochs: 2,
-    //     model_path: Some(model_path.to_str().unwrap().to_string()),
-    // };
-    // let mut az = AlphaZero::new(config);
-    // az.learn_parallel();
-    // // 'outer_loop: for i in 0..10000 {
-    // //     let mut state = Backgammon::new();
-    // //     state.roll_die();
-    // //     for i in 0..10000 {
-    // //         let game_end = Backgammon::check_win_without_player(state.board);
-    // //         println!("\nGame ended? => {:?}", game_end);
-    // //         if game_end.is_some() {
-    // //             state.display_board();
-    // //             break;
-    // //         }
-    // //         println!("Roll {:?}", &state.roll);
-    // //         let valid_moves = state.get_valid_moves_len_always_2();
-    // //         println!("Valid moves: {:?}", valid_moves);
-    // //         let encoded_valid_moves = valid_moves.iter().map(|m| state.encode(m)).collect_vec();
-    // //         println!("Valid moves encoded: {:?}", encoded_valid_moves);
-    // //         assert!(encoded_valid_moves.iter().all_unique());
-    // //         if valid_moves.is_empty() {
-    // //             state.display_board();
-    // //             state.skip_turn();
-    // //             continue
-    // //         }
-    // //         let next_move = az.get_next_move_for_state(&state);
-    // //         println!("Result: {:?}", next_move);
-    // //         state.apply_move(&next_move);
-    // //         assert!(valid_moves.contains(&next_move));
-    // //         state.is_valid();
-    // //         if i >= 9999 {
-    // //             println!("Game didn't end!");
-    // //             state.display_board();
-    // //             break 'outer_loop
-    // //         }
-    // //     }
-    // // }
-
-    // let player1 = Player {
-    //     player_type: Agent::Model,
-    //     model: Some(az),
-    // };
-
-    // let player2 = Player {
-    //     player_type: Agent::Random,
-    //     model: None,
-    // };
-
-    // let result = play(player1, player2);
-
-    // println!("Wins P1: {:?}", result.wins_p1)
-    // println!("Result: {:?}", result)
-
-    // let data_path1 = Path::new("./data/run-0/lrn-0/sp-0");
-    // let mut memory = az.load_training_data(data_path1);
-
-    // let data_path2 = Path::new("./data/run-0/lrn-0/sp-1");
-    // let mut memory2 = az.load_training_data(data_path2);
-
-    // memory.append(&mut memory2);
-    // az.train(&mut memory);
-
-    // let _ = az.save_current_model(model_path);
+    #[command(subcommand)]
+    command: Commands,
 }
 
-// Time state conversion using Backgammon::as_tensor
-// Outcome: 1700ms when to_device mps was called on as_tensor vs 60ms as_tensor after stacking states
-fn time_states_conv() {
-    let mut timer = TimeLogger::default();
-    let states = (0..2048)
-        .map(|_| {
-            let mut bg = Backgammon::new();
-            bg.roll_die();
-            bg
-        })
-        .collect_vec();
-    timer.start();
-    let states_vec = states.iter().map(|state| state.as_tensor()).collect_vec();
-    let _ = Tensor::stack(&states_vec, 0)
-        .squeeze_dim(1)
-        .to_device(*DEVICE);
-    timer.log("Inital states conversion");
+#[derive(Subcommand)]
+enum Commands {
+    // Starts the learning process
+    Learn {
+        // path of the model
+        #[arg(short, long)]
+        model_path: Option<PathBuf>
+    },
+    // TODO: Play
+    Play {
+
+    },
+    Train {
+        // Path of the model to train
+        #[arg(short, long)]
+        model_path: Option<PathBuf>,
+        // The run id for the data, uses all data under run id to train
+        #[arg(short, long)]
+        run_id: Option<String>,
+        // The idx of the learn iteration, run_id must also be given
+        #[arg(short, long)]
+        learn: Option<String>,
+        // The idx of the self_play iteration, learn_idx must also be given
+        #[arg(short, long)]
+        self_play: Option<String>,
+    }
+}
+
+fn main() {
+    let args = Args::parse();
+    // Load config
+    let config_path = args.config.unwrap_or(
+        PathBuf::from("./config")
+    );
+    let builder = Config::builder()
+        .add_source(config::File::new(config_path.to_str().unwrap(), config::FileFormat::Json));
+
+    let config = match builder.build() {
+        Ok(config) => config,
+        Err(e) => panic!("Unable to build config, caught error {}", e),
+    };
+
+    let n_cpus_in_device = num_cpus::get();
+    let n_cpus = match args.n_cpus {
+        Some(n) => if n_cpus_in_device > n {
+            panic!("Value provided in n_cpus flag ({}) is larger than total cpus in the device ({})!", n, n_cpus_in_device)
+        } else {n},
+        None => n_cpus_in_device / 2,
+    };
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(n_cpus)
+        .build_global()
+        .unwrap();
+    println!("Number of CPU's to use {}", n_cpus);
+
+    match args.command {
+        Commands::Learn { model_path } => {
+            let mut az_config = match AlphaZeroConfig::from_config(&config){
+                Ok(config) => config,
+                Err(e) => panic!("Unable to load AlphaZero config, {}", e),
+            };
+            az_config.model_path = model_path;
+            let mut az = AlphaZero::new(az_config);
+            az.learn_parallel();
+        },
+        Commands::Play {  } => todo!(),
+        Commands::Train { model_path, run_id, learn, self_play } => todo!(),
+    }
 }
