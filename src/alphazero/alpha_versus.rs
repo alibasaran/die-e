@@ -14,9 +14,9 @@ impl AlphaZero {
      * Plays against the current best model, saves if 55% better
      */
     pub fn play_vs_best_model(&self) {
-        let mut vs = VarStore::new(*DEVICE);
+        let mut vs_best_model = VarStore::new(*DEVICE);
         let best_model_path = "./models/best_model.ot";
-        match vs.load(Path::new(best_model_path)) {
+        match vs_best_model.load(Path::new(best_model_path)) {
             Ok(_) => (),
             Err(_) => match self.model.vs.save(best_model_path) {
                 Ok(_) => {
@@ -40,16 +40,13 @@ impl AlphaZero {
             },
         }
         // Create vs copy because we move the vs into the ResNet
-        let mut vs_copy = VarStore::new(*DEVICE);
-        vs_copy.copy(&vs).unwrap();
-
-        let is_model_better = match self.model_vs_model_parallel(&self.model, &ResNet::new(vs)) {
+        let is_model_better = match self.model_vs_model_parallel(&self.model, &ResNet::new(vs_best_model)) {
             Some(1) => true,
             Some(2) | None => false,
             Some(_) => unreachable!(),
         };
         if is_model_better {
-            match vs_copy.save(best_model_path) {
+            match self.model.vs.save(best_model_path) {
                 Ok(_) => self.pb.println("new model was better! saved").unwrap(),
                 Err(_) => self
                     .pb
