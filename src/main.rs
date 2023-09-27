@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     collections::HashMap,
     time::Duration, path::{Path, PathBuf}, fs, io,
@@ -6,7 +7,7 @@ use std::{
 use config::Config;
 use die_e::{
     backgammon::backgammon_logic::Backgammon,
-    constants::DEVICE, alphazero::alphazero::{AlphaZero, AlphaZeroConfig}, MctsConfig,
+    constants::DEVICE, alphazero::alphazero::{AlphaZero, AlphaZeroConfig}, MctsConfig, versus::{Agent, Player, play, save_game},
 };
 use itertools::Itertools;
 use tch::{Tensor, nn::VarStore};
@@ -35,9 +36,22 @@ enum Commands {
         #[arg(short, long)]
         model_path: Option<PathBuf>
     },
-    // TODO: Play
     Play {
-
+        // Agent one's type, can be 'random', 'mcts', 'model'
+        #[arg(short, long)]
+        agent_one: Option<String>,
+        // Path of model to play if agent one is of type 'model'
+        #[arg(short, long)]
+        model_path_one: Option<PathBuf>,
+        // Agent two's type, can be 'random', 'mcts', 'model'
+        #[arg(long)]
+        agent_two: Option<String>,
+        // Path of model to play if agent two is of type 'model'
+        #[arg(long)]
+        model_path_two: Option<PathBuf>,
+        // Path to output game after playing
+        #[arg(short, long)]
+        output_path: Option<PathBuf>,
     },
     Train {
         // Path of the model to train
@@ -90,7 +104,49 @@ fn main() {
             let mut az = AlphaZero::from_config(model_path, &config);
             az.learn_parallel();
         },
-        Commands::Play {  } => todo!(),
+        Commands::Play { agent_one, model_path_one, agent_two, model_path_two, output_path } => {
+            let agent_one_type = match agent_one {
+                Some(agent) => match agent.to_ascii_lowercase().as_str() {
+                    "model" => {Agent::Model},
+                    "mcts" => Agent::Mcts,
+                    "random" => Agent::Random,
+                    _ => panic!("Incorrect specification for agent one's type.")
+                }
+                None => panic!("Must define a type for agent one.")
+            };
+
+            let agent_two_type = match agent_two {
+                Some(agent) => match agent.to_ascii_lowercase().as_str() {
+                    "model" => Agent::Model,
+                    "mcts" => Agent::Mcts,
+                    "random" => Agent::Random,
+                    _ => panic!("Incorrect specification for agent two's type.")
+                }
+                None => panic!("Must define a type for agent two.")
+            };
+
+            let output_path = match output_path {
+                Some(output) => output,
+                None => panic!("No output path given.")
+            };
+
+            if !output_path.is_dir() {panic!("Output path is not a directory.")}
+
+            let alphazero_one = model_path_one
+                .map(|model_path| AlphaZero::from_config(Some(model_path), &config));
+
+            let alphazero_two = model_path_two
+                .map(|model_path| AlphaZero::from_config(Some(model_path), &config));
+
+            let player1 = Player{player_type: agent_one_type, model: alphazero_one};
+            let player2 = Player{player_type: agent_two_type, model: alphazero_two};
+
+            let play_result = play(player1, player2, &MctsConfig::from_config(&config).unwrap());
+            println!("{}\n Saving games...", play_result);
+            for game in play_result.games {
+                save_game(&game, output_path.to_str().unwrap()).unwrap()
+            }
+        },
         Commands::Train { model_path, out_path,  run_id, learn, self_play } => {
             println!("Starting training process");
             // Load training data

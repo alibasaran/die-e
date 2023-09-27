@@ -1,4 +1,4 @@
-use std::{path::Path, fs::{File, self}, io::{Read, Write}, time::Duration, collections::HashMap};
+use std::{path::Path, fs::{File, self}, io::{Read, Write}, time::Duration, collections::HashMap, fmt};
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
@@ -148,8 +148,8 @@ pub fn print_out_game(directory: &str, filename: &str) {
 }
 
 pub struct Player {
-    player_type: Agent,
-    model: Option<AlphaZero>,
+    pub player_type: Agent,
+    pub model: Option<AlphaZero>,
 }
 
 #[derive(Debug)]
@@ -160,7 +160,25 @@ pub struct PlayResult {
     wins_p2: usize,
     n_games: usize,
     winrate: f64,
-    games: Vec<Game>,
+    pub games: Vec<Game>,
+}
+
+impl fmt::Display for PlayResult {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Player 1: {:?}", self.player1)?;
+        writeln!(f, "Player 2: {:?}", self.player2)?;
+        writeln!(f, "Wins Player 1: {}", self.wins_p1)?;
+        writeln!(f, "Wins Player 2: {}", self.wins_p2)?;
+        writeln!(f, "Number of Games: {}", self.n_games)?;
+        writeln!(f, "Winrate: {:.2}%", self.winrate)?;
+        Ok(())
+    }
+}
+
+impl Player {
+    pub fn new(player_type: Agent, model: Option<AlphaZero>) -> Self {
+        Player { player_type, model}
+    }
 }
 
 pub fn play(player1: Player, player2: Player, mcts_config: &MctsConfig) -> PlayResult {
