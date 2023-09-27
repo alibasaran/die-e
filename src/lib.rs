@@ -1,3 +1,5 @@
+use config::{Config, ConfigError};
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -14,9 +16,6 @@ pub mod constants {
     use tch::Device;
     
     // https://jonathan-laurent.github.io/AlphaZero.jl/stable/reference/params/#AlphaZero.MctsParams
-    pub const DIRICHLET_ALPHA: f32 = 0.02;
-    pub const DIRICHLET_EPSILON: f32 = 0.25;
-
     pub const ACTION_SPACE_SIZE: i64 = 1352;
 
     pub const DEFAULT_TYPE: tch::kind::Kind = tch::Kind::Float;
@@ -32,16 +31,23 @@ pub mod constants {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MctsConfig {
     iterations: usize,
     c: f32,
     simulate_round_limit: usize,
+    dirichlet_alpha: f32,
+    dirichlet_epsilon: f32
 }
 
-pub const MCTS_CONFIG: MctsConfig = MctsConfig {
-    iterations: 400,
-    c: 1.0,
-    // c: std::f32::consts::SQRT_2,
-    simulate_round_limit: 400 // 200 per player = 200 turns,
-};
+impl MctsConfig {
+    pub fn from_config(conf: &Config) -> Result<Self, ConfigError> {
+        Ok(MctsConfig {
+            iterations: conf.get_int("iterations")? as usize,
+            c: conf.get_float("exploration_const")? as f32,
+            simulate_round_limit: conf.get_int("simulate_round_limit")? as usize,
+            dirichlet_alpha: conf.get_float("DIRICHLET_ALPHA")? as f32,
+            dirichlet_epsilon: conf.get_float("DIRICHLET_EPSILON")? as f32,
+        })
+    }
+}

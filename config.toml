@@ -9,8 +9,8 @@ num_self_play_batches = 512 # how many games will be played in parellel in self 
 
 # parameters used in MCTS
 iterations = 400
-exploration_constant = 1.0
+exploration_const = 1.0
 simulate_round_limit = 400 # 200 per player => 200 rounds/turns
 # https://jonathan-laurent.github.io/AlphaZero.jl/stable/reference/params/#AlphaZero.MctsParams
-DIRICHLET_ALPHA = 0.02
-DIRICHLET_EPSILON = 0.25
+dirichlet_alpha = 0.02
+dirichlet_epsilon = 0.25

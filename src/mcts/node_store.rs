@@ -49,17 +49,11 @@ impl NodeStore {
     }
 
     pub fn get_node(&self, idx: usize) -> Node {
-        match self.nodes.get(idx) {
-            None => { self.pretty_print(0, 0); panic!("there is no node at idx: {}, {}", idx, self) }
-            Some(node) => node.clone()
-        }
+        self.nodes.get(idx).unwrap().clone()
     }
 
     pub fn get_node_ref(&self, idx: usize) -> &Node {
-        match self.nodes.get(idx) {
-            None => { self.pretty_print(0, 0); panic!("there is no node at idx: {}, {}", idx, self) }
-            Some(node) => node
-        }
+        self.nodes.get(idx).unwrap()
     }
 
     pub fn get_node_as_mut(&mut self, idx: usize) -> &mut Node {
@@ -70,12 +64,12 @@ impl NodeStore {
         self.nodes.is_empty()
     }
 
-    pub fn pretty_print(&self, index: usize, depth: usize) {
-        self._pretty_print(index, depth, 0)
+    pub fn pretty_print(&self, index: usize, depth: usize, c: f32) {
+        self._pretty_print(index, depth, 0, c)
     }
 
 
-    fn _pretty_print(&self, index: usize, depth: usize, current_depth: usize) {
+    fn _pretty_print(&self, index: usize, depth: usize, current_depth: usize, c: f32) {
         if current_depth > depth {
             return;
         }
@@ -90,12 +84,12 @@ impl NodeStore {
             node.action_taken,
             node.visits,
             node.value,
-            node.ucb(self),
+            node.ucb(self, c),
             node.win_pct()
         );
     
         for &child_index in &node.children {
-            self._pretty_print(child_index, depth, current_depth + 1);
+            self._pretty_print(child_index, depth, current_depth + 1, c);
         }
     }
 }

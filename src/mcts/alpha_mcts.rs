@@ -6,64 +6,33 @@ use itertools::Itertools;
 
 use tch::Tensor;
 
-use crate::{backgammon::backgammon_logic::Backgammon, alphazero::nnet::ResNet, constants::{DIRICHLET_ALPHA, DIRICHLET_EPSILON, DEVICE}, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MCTS_CONFIG};
+use crate::{backgammon::backgammon_logic::Backgammon, alphazero::nnet::ResNet, constants::DEVICE, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MctsConfig};
 
 use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
-pub struct TimeLogger {
-    start_time: SystemTime,
-    last_log: SystemTime
-}
 
-impl Default for TimeLogger {
-    fn default() -> Self {
-        TimeLogger { start_time: UNIX_EPOCH, last_log: UNIX_EPOCH }
-    }
-}
-
-const LOCK_LOGGER: bool = false;
-
-impl TimeLogger {
-    pub fn start(&mut self) {
-        if LOCK_LOGGER {
-            return;
-        }
-        self.start_time = SystemTime::now();
-        self.last_log = SystemTime::now();
-        println!("Started TimeLogger")
-    }
-
-    pub fn log(&mut self, msg: &str) {
-        if LOCK_LOGGER {
-            return;
-        }
-        println!("{}: {} ms", msg, SystemTime::now().duration_since(self.last_log).unwrap().as_millis());
-        self.last_log = SystemTime::now();
-    }
-}
-
-fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore) -> usize {
+fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore, c: f32) -> usize {
     let node = store.get_node(node_idx);
     if node.children.is_empty() {
         return node.idx;
     }
-    alpha_select_leaf_node(select_alpha(node_idx, store).idx, store)
+    alpha_select_leaf_node(select_alpha(node_idx, store, c).idx, store, c)
 }
 
-fn select_alpha(node_idx: usize, store: &NodeStore) -> Node {
+fn select_alpha(node_idx: usize, store: &NodeStore, c: f32) -> Node {
     let node = store.get_node(node_idx);
     node.children
         .iter()
         .map(|child_idx| store.get_node(*child_idx))
         .max_by(|a, b| {
-            a.alpha_ucb(store)
-                .partial_cmp(&b.alpha_ucb(store))
+            a.alpha_ucb(store, c)
+                .partial_cmp(&b.alpha_ucb(store, c))
                 .unwrap_or(Ordering::Equal)
         })
         .expect("select_alpha called on node without children!")
 }
 
-pub fn apply_dirichlet_to_root(root_idx: usize, store: &mut NodeStore, net: &ResNet, state: &Backgammon) {
+pub fn apply_dirichlet_to_root(root_idx: usize, store: &mut NodeStore, net: &ResNet, state: &Backgammon, mcts_config: &MctsConfig) {
     let mut root_node = store.get_node(root_idx);
     
     let (mut policy, _) = net.forward_t(&state.as_tensor().to_device(*DEVICE), false);
@@ -79,11 +48,11 @@ pub fn apply_dirichlet_to_root(root_idx: usize, store: &mut NodeStore, net: &Res
     // Set visits to 1
     root_node.visits = 1.;
     // Apply dirichlet to root policies
-    root_node.apply_dirichlet(DIRICHLET_ALPHA, DIRICHLET_EPSILON, store);
+    root_node.apply_dirichlet(mcts_config.dirichlet_alpha, mcts_config.dirichlet_epsilon, store);
     store.set_node(&root_node)
 }
 
-pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
+pub fn alpha_mcts(state: &Backgammon, net: &ResNet, mcts_config: &MctsConfig) -> Option<Tensor> {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     
@@ -95,12 +64,12 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
     let roll = state.roll;
     let root_node_idx = store.add_node(*state, None, None, Some(roll), 0.0);
     
-    apply_dirichlet_to_root(root_node_idx, &mut store, net, state);
+    apply_dirichlet_to_root(root_node_idx, &mut store, net, state, mcts_config);
     
-    let pb_iter = (0..MCTS_CONFIG.iterations).progress().with_message("AlphaMCTS");
+    let pb_iter = (0..mcts_config.iterations).progress().with_message("AlphaMCTS");
     for _ in pb_iter {
         // Don't forget to save the node later into the store
-        let idx = alpha_select_leaf_node(root_node_idx, &store);
+        let idx = alpha_select_leaf_node(root_node_idx, &store, mcts_config.c);
         let mut selected_node = store.get_node(idx);
 
         let value: f32;
@@ -126,7 +95,7 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet) -> Option<Tensor> {
 /*
     Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
 */
-pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet, pb: Option<ProgressBar>) {
+pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet, mcts_config: &MctsConfig, pb: Option<ProgressBar>) {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
@@ -142,7 +111,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
     let policy = net.forward_policy(&states_tensor, false);
 
     // Apply dirichlet to root policy tensor
-    let policy_dir = apply_dirichlet(&policy, DIRICHLET_ALPHA, DIRICHLET_EPSILON);
+    let policy_dir = apply_dirichlet(&policy, mcts_config.dirichlet_alpha, mcts_config.dirichlet_epsilon);
 
     // Create root node for each game state
     for (_, state) in states.iter().enumerate() {
@@ -179,13 +148,13 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
 
     let pb = match pb {
         Some(p) => p,
-        None => ProgressBar::new(MCTS_CONFIG.iterations as u64)
+        None => ProgressBar::new(mcts_config.iterations as u64)
     };
 
-    for _ in 0..MCTS_CONFIG.iterations {
+    for _ in 0..mcts_config.iterations {
         let mut ended_games = vec![];
         for game_idx in games.iter() {
-            let idx = alpha_select_leaf_node(*game_idx, store);
+            let idx = alpha_select_leaf_node(*game_idx, store, mcts_config.c);
             let selected_node = store.get_node(idx);
     
             if selected_node.is_terminal() {

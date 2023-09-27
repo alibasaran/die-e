@@ -5,7 +5,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rand::{thread_rng, seq::SliceRandom};
 use tch::nn::VarStore;
 
-use crate::{constants::DEVICE, backgammon::backgammon_logic::Backgammon, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor_parallel}, MCTS_CONFIG};
+use crate::{constants::DEVICE, backgammon::backgammon_logic::Backgammon, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor_parallel}};
 
 use super::{alphazero::AlphaZero, nnet::ResNet};
 
@@ -81,9 +81,9 @@ impl AlphaZero {
             loop {
                 // Get probabilities from mcts
                 let mcts_res = if bg.player == -1 {
-                    alpha_mcts(&bg, model1)
+                    alpha_mcts(&bg, model1, &self.mcts_config)
                 } else {
-                    alpha_mcts(&bg, model2)
+                    alpha_mcts(&bg, model2, &self.mcts_config)
                 };
                 let mut pi = match mcts_res {
                     Some(pi) => pi,
@@ -166,20 +166,20 @@ impl AlphaZero {
             // Process states by model depending on their player
             if !states_m1.is_empty() {
                 let pb_mcts_m1 = self.pb.add(
-                    ProgressBar::new(MCTS_CONFIG.iterations.try_into().unwrap())
+                    ProgressBar::new(self.mcts_config.iterations.try_into().unwrap())
                     .with_message(format!("Model 1 AlphaMCTS - {} games", states_m1.len()))
                     .with_style(sty.clone()),
 
                 );
-                alpha_mcts_parallel(&mut store1, &states_m1, model1, Some(pb_mcts_m1));
+                alpha_mcts_parallel(&mut store1, &states_m1, model1, &self.mcts_config,  Some(pb_mcts_m1));
             }
             if !states_m2.is_empty() {
                 let pb_mcts_m2 = self.pb.add(
-                    ProgressBar::new(MCTS_CONFIG.iterations.try_into().unwrap())
+                    ProgressBar::new(self.mcts_config.iterations.try_into().unwrap())
                         .with_message(format!("Model 2 AlphaMCTS - {} games", states_m2.len()))
                         .with_style(sty.clone()),
                 );
-                alpha_mcts_parallel(&mut store2, &states_m2, model2, Some(pb_mcts_m2));
+                alpha_mcts_parallel(&mut store2, &states_m2, model2, &self.mcts_config, Some(pb_mcts_m2));
             }
             mcts_count += 1;
 
@@ -217,7 +217,7 @@ impl AlphaZero {
                     }
                     games_to_remove.push(initial_idx);
                 }
-                if mcts_count >= MCTS_CONFIG.simulate_round_limit {
+                if mcts_count >= self.mcts_config.simulate_round_limit {
                     games_to_remove.push(initial_idx);
                     let choices = vec![-1, 1];
                     let rand_winner = choices.choose(&mut thread_rng()).unwrap();

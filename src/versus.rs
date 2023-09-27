@@ -6,7 +6,7 @@ use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Serialize, Deserialize};
 use nanoid::nanoid;
 
-use crate::{backgammon::backgammon_logic::{Backgammon, Actions}, mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::{alphazero::{AlphaZero}}};
+use crate::{backgammon::backgammon_logic::{Backgammon, Actions}, mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::{alphazero::{AlphaZero}}, MctsConfig};
 
 
 /*
@@ -163,7 +163,7 @@ pub struct PlayResult {
     games: Vec<Game>,
 }
 
-pub fn play(player1: Player, player2: Player) -> PlayResult {
+pub fn play(player1: Player, player2: Player, mcts_config: &MctsConfig) -> PlayResult {
     println!("\nStarting play!");
     let pb_play = MultiProgress::new();
     let sty = ProgressStyle::with_template(
@@ -206,9 +206,9 @@ pub fn play(player1: Player, player2: Player) -> PlayResult {
         );
         actions_pb.enable_steady_tick(Duration::from_millis(200));
         actions_pb.set_message(format!("Calculating actions for player1: {:?}", player1.player_type));
-        let actions_p1 = get_actions_for_player(&player1, &games_p1);
+        let actions_p1 = get_actions_for_player(&player1, &games_p1, mcts_config);
         actions_pb.set_message(format!("Calculating actions for player2: {:?}", player2.player_type));
-        let actions_p2 = get_actions_for_player(&player2, &games_p2);
+        let actions_p2 = get_actions_for_player(&player2, &games_p2, mcts_config);
         actions_pb.set_message("playing moves...");
 
         let actions_and_games = actions_p1
@@ -272,7 +272,7 @@ pub fn play(player1: Player, player2: Player) -> PlayResult {
     }
 }
 
-fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions> {
+fn get_actions_for_player(player: &Player, games: &[Backgammon], mcts_config: &MctsConfig) -> Vec<Actions> {
     if games.is_empty() {
         return vec![];
     }
@@ -281,7 +281,7 @@ fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions>
         Agent::Model => {
             let az = player.model.as_ref().unwrap();
             let mut store = NodeStore::new();
-            alpha_mcts_parallel(&mut store, games, &az.model, Some(ProgressBar::hidden()));
+            alpha_mcts_parallel(&mut store, games, &az.model, mcts_config, Some(ProgressBar::hidden()));
             let roots = store.get_root_nodes();
             let prob_tensor = get_prob_tensor_parallel(&roots)
                 .pow_(1.0 / az.config.temperature)
@@ -307,7 +307,7 @@ fn get_actions_for_player(player: &Player, games: &[Backgammon]) -> Vec<Actions>
         }
         Agent::Mcts => games
             .par_iter()
-            .map(|game| mct_search(*game, game.player))
+            .map(|game| mct_search(*game, game.player, mcts_config))
             .collect(),
         Agent::Random => games
             .par_iter()

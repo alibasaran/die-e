@@ -6,8 +6,7 @@ use std::{
 use config::Config;
 use die_e::{
     backgammon::backgammon_logic::Backgammon,
-    mcts::alpha_mcts::TimeLogger,
-    constants::DEVICE, alphazero::alphazero::{AlphaZero, AlphaZeroConfig},
+    constants::DEVICE, alphazero::alphazero::{AlphaZero, AlphaZeroConfig}, MctsConfig,
 };
 use itertools::Itertools;
 use tch::{Tensor, nn::VarStore};
@@ -88,12 +87,7 @@ fn main() {
 
     match args.command {
         Commands::Learn { model_path } => {
-            let mut az_config = match AlphaZeroConfig::from_config(&config){
-                Ok(config) => config,
-                Err(e) => panic!("Unable to load AlphaZero config, {}", e),
-            };
-            az_config.model_path = model_path;
-            let mut az = AlphaZero::new(az_config);
+            let mut az = AlphaZero::from_config(model_path, &config);
             az.learn_parallel();
         },
         Commands::Play {  } => todo!(),
@@ -120,12 +114,7 @@ fn main() {
             println!("Total memory fragments: {}", &training_data.len());
             
             // Create AZ instance for training
-            let mut az_config = match AlphaZeroConfig::from_config(&config){
-                Ok(config) => config,
-                Err(e) => panic!("Unable to load AlphaZero config, {}", e),
-            };
-            az_config.model_path = model_path;
-            let mut az = AlphaZero::new(az_config);
+            let mut az = AlphaZero::from_config(model_path, &config);
 
             // Train and save model
             az.train(&mut training_data);

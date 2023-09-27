@@ -43,7 +43,7 @@ impl AlphaZero {
             println!("Player: {}", bg.player);
             bg.display_board();
             // Get probabilities from mcts
-            let mut pi = match alpha_mcts(&bg, &self.model) {
+            let mut pi = match alpha_mcts(&bg, &self.model, &self.mcts_config) {
                 Some(pi) => pi,
                 None => {
                     println!("No valid moves!");

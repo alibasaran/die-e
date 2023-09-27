@@ -3,7 +3,7 @@ use std::{fs, path::Path, collections::HashMap};
 use indicatif::{ProgressStyle, ProgressBar};
 use itertools::Itertools;
 
-use crate::{backgammon::backgammon_logic::Backgammon, MCTS_CONFIG, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel, utils::get_prob_tensor_parallel}};
+use crate::{backgammon::backgammon_logic::Backgammon, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel, utils::get_prob_tensor_parallel}};
 
 use super::alphazero::{AlphaZero, MemoryFragment};
 use nanoid::nanoid;
@@ -122,13 +122,13 @@ impl AlphaZero {
             let mut store = NodeStore::new();
             let state_to_process = states.iter().map(|tup| tup.1 .1).collect_vec();
             let mcts_pb = self.pb.add(
-                ProgressBar::new(MCTS_CONFIG.iterations as u64)
+                ProgressBar::new(self.mcts_config.iterations as u64)
                     .with_style(sty.clone())
                     .with_message("Alpha mcts parallel")
                     .with_finish(indicatif::ProgressFinish::AndClear),
             );
             // Fill store with games
-            alpha_mcts_parallel(&mut store, &state_to_process, &self.model, Some(mcts_pb));
+            alpha_mcts_parallel(&mut store, &state_to_process, &self.model, &self.mcts_config, Some(mcts_pb));
             mcts_runs += 1;
             // processed idx: the index of the state in remaining processed states
             // init_idx: the index of the state in the initial creation of the states vector
@@ -145,7 +145,7 @@ impl AlphaZero {
                 let curr_prob_tensor = prob_tensor.get(processed_idx as i64);
 
                 // Check round limit
-                if n_rounds[*init_idx] >= MCTS_CONFIG.simulate_round_limit {
+                if n_rounds[*init_idx] >= self.mcts_config.simulate_round_limit {
                     let curr_memory = memories[*init_idx].iter().map(|mem| MemoryFragment {
                         outcome: 0,
                         ps: mem.ps.shallow_clone(),

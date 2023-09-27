@@ -6,7 +6,7 @@ use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom
 
 use std::{
     cmp::min,
-    path::{Path, PathBuf}, collections::HashMap,
+    path::{Path, PathBuf},
 };
 use tch::{
     nn::{self, Adam, Optimizer, OptimizerConfig},
@@ -19,8 +19,7 @@ use super::nnet::ResNet;
 use crate::{
     backgammon::backgammon_logic::{Backgammon, Actions},
     constants::{DEFAULT_TYPE, DEVICE},
-    mcts::alpha_mcts::alpha_mcts,
-    MCTS_CONFIG,
+    mcts::alpha_mcts::alpha_mcts, MctsConfig,
 };
 
 #[derive(Debug)]
@@ -31,7 +30,6 @@ pub struct AlphaZeroConfig {
     pub num_epochs: usize,
     pub training_batch_size: usize,
     pub num_self_play_batches: usize,
-    pub model_path: Option<PathBuf>
 }
 
 impl AlphaZeroConfig {
@@ -43,7 +41,6 @@ impl AlphaZeroConfig {
             num_epochs: conf.get_int("num_epochs")? as usize,
             training_batch_size: conf.get_int("training_batch_size")? as usize,
             num_self_play_batches: conf.get_int("num_self_play_batches")? as usize,
-            model_path: None,
         })
     }
 
@@ -54,6 +51,7 @@ pub struct AlphaZero {
     pub model: ResNet,
     pub(crate) optimizer: Optimizer,
     pub config: AlphaZeroConfig,
+    pub mcts_config: MctsConfig,
     pub(crate) pb: MultiProgress,
 }
 #[derive(Debug)]
@@ -69,13 +67,13 @@ torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0
 
 
 impl AlphaZero {
-    pub fn new(config: AlphaZeroConfig) -> Self {
+    pub fn new(model_path: Option<PathBuf>, config: AlphaZeroConfig, mcts_config: MctsConfig) -> Self {
         let mut vs = nn::VarStore::new(*DEVICE);
 
-        println!("Initializing AlphaZero...\nDevice: {:?}\n{:?}\n{:?}", *DEVICE, &config, MCTS_CONFIG);
+        println!("Initializing AlphaZero...\nDevice: {:?}\n{:?}\n{:?}", *DEVICE, &config, mcts_config);
 
-        match &config.model_path {
-            Some(m_path) => match vs.load(m_path) {
+        match model_path {
+            Some(m_path) => match vs.load(&m_path) {
                 Ok(_) => println!("Successfully loaded model on path: {}", m_path.to_str().unwrap()),
                 Err(e) => panic!("failed to load model: (might be a large error log) \n{}", e),
             },
@@ -95,8 +93,21 @@ impl AlphaZero {
             model: ResNet::new(vs),
             optimizer: opt,
             config,
+            mcts_config,
             pb: MultiProgress::new(),
         }
+    }
+
+    pub fn from_config(model_path: Option<PathBuf>, config: &Config) -> Self {
+        let az_config = match AlphaZeroConfig::from_config(config){
+            Ok(config) => config,
+            Err(e) => panic!("Unable to load AlphaZero config, {}", e),
+        };
+        let mcts_config = match MctsConfig::from_config(config) {
+            Ok(config) => config,
+            Err(e) => panic!("Unable to load MCTS config, {}", e),
+        };
+        AlphaZero::new(model_path, az_config, mcts_config)
     }
 
     pub fn weighted_select_tensor_idx(pi: &Tensor) -> usize {
@@ -110,7 +121,7 @@ impl AlphaZero {
     }
 
     pub fn get_next_move_for_state(&self, current_state: &Backgammon) -> Actions {
-        let mut pi = match alpha_mcts(current_state, &self.model) {
+        let mut pi = match alpha_mcts(current_state, &self.model, &self.mcts_config) {
             Some(pi) => pi,
             None => return vec![]
         };

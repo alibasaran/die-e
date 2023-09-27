@@ -1,4 +1,3 @@
-use crate::MCTS_CONFIG;
 use crate::backgammon::backgammon_logic::{Actions, Backgammon};
 use rand::{seq::SliceRandom, Rng};
 use tch::Tensor;
@@ -87,18 +86,18 @@ impl Node {
         Backgammon::check_win(self.state.board, self.state.player)
     }
 
-    pub fn ucb(&self, store: &NodeStore) -> f32 {
+    pub fn ucb(&self, store: &NodeStore, c: f32) -> f32 {
         match self.parent {
             Some(parent_idx) => {
                 let parent = store.get_node(parent_idx);
                 let q_value = self.value.div(self.visits);
-                q_value + (MCTS_CONFIG.c * parent.visits.ln().div(self.visits).sqrt())
+                q_value + (c * parent.visits.ln().div(self.visits).sqrt())
             }
             None => f32::INFINITY,
         }
     }
 
-    pub fn alpha_ucb(&self, store: &NodeStore) -> f32 {
+    pub fn alpha_ucb(&self, store: &NodeStore, c: f32) -> f32 {
         let q_value = if self.visits == 0.0 {
             0.0
         } else {
@@ -108,7 +107,7 @@ impl Node {
             Some(parent_idx) => {
                 let parent = store.get_node(parent_idx);
                 q_value
-                    + (MCTS_CONFIG.c * parent.visits.sqrt().div(self.visits + 1.0)) * self.policy
+                    + (c * parent.visits.sqrt().div(self.visits + 1.0)) * self.policy
             }
             None => f32::INFINITY,
         }
@@ -206,11 +205,11 @@ impl Node {
         store.set_node(self);
     }
 
-    pub fn simulate(&mut self, player: i8) -> f32 {
+    pub fn simulate(&mut self, player: i8, sim_limit: usize) -> f32 {
         let mut rng = rand::thread_rng();
         let mut curr_state = self.state;
 
-        for _ in 0..MCTS_CONFIG.simulate_round_limit {
+        for _ in 0..sim_limit {
             if let Some(winner) = Backgammon::check_win_without_player(curr_state.board) {
                 return (((winner / player) + 1) / 2) as f32;
             }
