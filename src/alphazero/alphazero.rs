@@ -29,18 +29,10 @@ pub struct AlphaZeroConfig {
     pub learn_iterations: usize,
     pub self_play_iterations: usize,
     pub num_epochs: usize,
-    pub batch_size: usize,
+    pub training_batch_size: usize,
+    pub num_self_play_batches: usize,
     pub model_path: Option<PathBuf>
 }
-
-pub const AZ_CONFIG_KEYS: [&str; 6] = [
-    "temperature",
-    "learn_iterations",
-    "self_play_iterations",
-    "num_epochs",
-    "batch_size",
-    "model_path",
-];
 
 impl AlphaZeroConfig {
     pub fn from_config(conf: &config::Config) -> Result<Self, config::ConfigError> {
@@ -49,7 +41,8 @@ impl AlphaZeroConfig {
             learn_iterations: conf.get_int("learn_iterations")? as usize,
             self_play_iterations: conf.get_int("self_play_iterations")? as usize,
             num_epochs: conf.get_int("num_epochs")? as usize,
-            batch_size: conf.get_int("batch_size")? as usize,
+            training_batch_size: conf.get_int("training_batch_size")? as usize,
+            num_self_play_batches: conf.get_int("num_self_play_batches")? as usize,
             model_path: None,
         })
     }
@@ -86,14 +79,14 @@ impl AlphaZero {
                 Ok(_) => println!("Successfully loaded model on path: {}", m_path.to_str().unwrap()),
                 Err(e) => panic!("failed to load model: (might be a large error log) \n{}", e),
             },
-            None if Path::new("./models/best_model").exists() => {
-                let bm_path = Path::new("./models/best_model");
+            None if Path::new("./models/best_model.ot").exists() => {
+                let bm_path = Path::new("./models/best_model.ot");
                 match vs.load(bm_path) {
                     Ok(_) => println!("Successfully loaded best model"),
                     Err(e) => panic!("failed to load best model: {}", e),
                 }
             },
-            None => println!("Starting to train model from scratch!")
+            None => println!("No best model found, initialized from scratch")
         }
 
         let opt = Adam::default().wd(1e-4).build(&vs, 1e-4).unwrap();
@@ -146,9 +139,9 @@ impl AlphaZero {
         let outcomes = Tensor::from_slice(&outcomes);
 
         match (
-            ps.save(path.join("ps")),
-            states.save(path.join("states")),
-            outcomes.save(path.join("outcomes")),
+            ps.save(path.join("ps.ot")),
+            states.save(path.join("states.ot")),
+            outcomes.save(path.join("outcomes.ot")),
         ) {
             (Ok(_), Ok(_), Ok(_)) => (),
             _ => panic!("unable to save training data!"),
@@ -161,13 +154,13 @@ impl AlphaZero {
      path: the Path to load the data from can end with:
      * lrn-x for all training data under the learn 
      */
-    pub fn load_training_data(&self, path: &Path) -> Vec<MemoryFragment> {
+    pub fn load_training_data(path: &Path) -> Vec<MemoryFragment> {
         if !path.exists() {
             panic!("path: {} does not exist!", path.to_str().unwrap())
         }
-        let ps = Tensor::load(path.join("ps")).unwrap().squeeze();
-        let states = Tensor::load(path.join("states")).unwrap().squeeze();
-        let outcomes = Tensor::load(path.join("outcomes")).unwrap().squeeze();
+        let ps = Tensor::load(path.join("ps.ot")).unwrap().squeeze();
+        let states = Tensor::load(path.join("states.ot")).unwrap().squeeze();
+        let outcomes = Tensor::load(path.join("outcomes.ot")).unwrap().squeeze();
 
         let data_size = ps.size()[0];
         (0..data_size).map(|data_idx| {
@@ -182,8 +175,8 @@ impl AlphaZero {
     pub fn train(&mut self, memory: &mut Vec<MemoryFragment>) {
         let mut rng = thread_rng();
         memory.shuffle(&mut rng);
-        for batch_idx in (0..memory.len()).step_by(self.config.batch_size) {
-            let sample = &memory[batch_idx..min(batch_idx + self.config.batch_size, memory.len())];
+        for batch_idx in (0..memory.len()).step_by(self.config.training_batch_size) {
+            let sample = &memory[batch_idx..min(batch_idx + self.config.training_batch_size, memory.len())];
             let (outcomes, ps_values, states): (Vec<i8>, Vec<Tensor>, Vec<Tensor>) =
                 multiunzip(sample.iter().map(|fragment| {
                     (

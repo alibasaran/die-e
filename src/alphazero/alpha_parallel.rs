@@ -3,7 +3,7 @@ use std::{fs, path::Path, collections::HashMap};
 use indicatif::{ProgressStyle, ProgressBar};
 use itertools::Itertools;
 
-use crate::{constants::N_SELF_PLAY_BATCHES, backgammon::backgammon_logic::Backgammon, MCTS_CONFIG, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel, utils::get_prob_tensor_parallel}};
+use crate::{backgammon::backgammon_logic::Backgammon, MCTS_CONFIG, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel, utils::get_prob_tensor_parallel}};
 
 use super::alphazero::{AlphaZero, MemoryFragment};
 use nanoid::nanoid;
@@ -89,7 +89,8 @@ impl AlphaZero {
     }
 
     pub fn self_play_parallel(&self) -> Vec<MemoryFragment> {
-        let mut states: HashMap<usize, (usize, Backgammon)> = (0..N_SELF_PLAY_BATCHES)
+        let n_batches: usize = self.config.num_self_play_batches;
+        let mut states: HashMap<usize, (usize, Backgammon)> = (0..n_batches)
             .map(|idx| {
                 let mut bg = Backgammon::new();
                 bg.roll_die();
@@ -97,11 +98,10 @@ impl AlphaZero {
             })
             .collect();
 
-        let mut memories: [Vec<MemoryFragment>; N_SELF_PLAY_BATCHES] =
-            std::array::from_fn(|_| vec![]);
+        let mut memories = Vec::from_iter((0..n_batches).map(|_| Vec::<MemoryFragment>::new()));
         let mut all_memories = vec![];
 
-        let mut n_rounds = [0; N_SELF_PLAY_BATCHES];
+        let mut n_rounds = vec![0; n_batches];
 
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
@@ -109,14 +109,14 @@ impl AlphaZero {
         .unwrap()
         .progress_chars("##-");
 
-        let self_play_pb = self.pb.add(ProgressBar::new(N_SELF_PLAY_BATCHES as u64));
-        self_play_pb.set_message(format!("Self play - {} batches", N_SELF_PLAY_BATCHES));
+        let self_play_pb = self.pb.add(ProgressBar::new(n_batches as u64));
+        self_play_pb.set_message(format!("Self play - {} batches", n_batches));
         self_play_pb.set_style(sty.clone());
 
         let mut mcts_runs = 0;
         while !states.is_empty() {
-            self_play_pb.set_position((N_SELF_PLAY_BATCHES - states.len()) as u64);
-            self_play_pb.set_message(format!("Self play - {} batches, on mcts run {}", N_SELF_PLAY_BATCHES, mcts_runs));
+            self_play_pb.set_position((n_batches - states.len()) as u64);
+            self_play_pb.set_message(format!("Self play - {} batches, on mcts run {}", n_batches, mcts_runs));
 
             // Mutates store, does not return anything
             let mut store = NodeStore::new();
