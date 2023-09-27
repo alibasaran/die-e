@@ -45,7 +45,7 @@ enum Commands {
         model_path: Option<PathBuf>,
         // Path to output model after training
         #[arg(short, long)]
-        model_save_path: Option<PathBuf>,
+        out_path: Option<PathBuf>,
         // The run id for the data, uses all data under run id to train
         #[arg(short, long)]
         run_id: Option<String>,
@@ -91,7 +91,7 @@ fn main() {
             az.learn_parallel();
         },
         Commands::Play {  } => todo!(),
-        Commands::Train { model_path, model_save_path,  run_id, learn, self_play } => {
+        Commands::Train { model_path, out_path,  run_id, learn, self_play } => {
             println!("Starting training process");
             // Load training data
             let data_path = match (run_id, learn, self_play) {
@@ -118,7 +118,7 @@ fn main() {
 
             // Train and save model
             az.train(&mut training_data);
-            let final_out_path = model_save_path.unwrap_or(Path::new("./models/trained_model.ot").to_path_buf());
+            let final_out_path = out_path.unwrap_or(Path::new("./models/trained_model.ot").to_path_buf());
             match az.model.vs.save(&final_out_path) {
                 Ok(_) => println!("Trained model saved successfully, saved to {}", final_out_path.to_str().unwrap()),
                 Err(e) => panic!("unable to save trained model {}", e),

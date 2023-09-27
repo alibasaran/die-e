@@ -43,9 +43,21 @@ impl AlphaZeroConfig {
             num_self_play_batches: conf.get_int("num_self_play_batches")? as usize,
         })
     }
-
 }
 
+pub struct OptimizerParams {
+    wd: f64, 
+    lr: f64
+}
+
+impl OptimizerParams {
+    pub fn from_config(conf: &Config) -> Result<Self, config::ConfigError> {
+        Ok(OptimizerParams { 
+            wd: conf.get_float("wd")?, 
+            lr: conf.get_float("lr")?
+        })
+    }
+}
 
 pub struct AlphaZero {
     pub model: ResNet,
@@ -67,7 +79,7 @@ torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0
 
 
 impl AlphaZero {
-    pub fn new(model_path: Option<PathBuf>, config: AlphaZeroConfig, mcts_config: MctsConfig) -> Self {
+    pub fn new(model_path: Option<PathBuf>, config: AlphaZeroConfig, mcts_config: MctsConfig, op: OptimizerParams) -> Self {
         let mut vs = nn::VarStore::new(*DEVICE);
 
         println!("Initializing AlphaZero...\nDevice: {:?}\n{:?}\n{:?}", *DEVICE, &config, mcts_config);
@@ -87,7 +99,7 @@ impl AlphaZero {
             None => println!("No best model found, initialized from scratch")
         }
 
-        let opt = Adam::default().wd(1e-4).build(&vs, 1e-4).unwrap();
+        let opt = Adam::default().wd(op.wd).build(&vs, op.lr).unwrap();
 
         AlphaZero {
             model: ResNet::new(vs),
@@ -107,7 +119,11 @@ impl AlphaZero {
             Ok(config) => config,
             Err(e) => panic!("Unable to load MCTS config, {}", e),
         };
-        AlphaZero::new(model_path, az_config, mcts_config)
+        let op = match OptimizerParams::from_config(config) {
+            Ok(op) => op,
+            Err(e) => panic!("Unable to load optimizer params, {}", e),
+        };
+        AlphaZero::new(model_path, az_config, mcts_config, op)
     }
 
     pub fn weighted_select_tensor_idx(pi: &Tensor) -> usize {
