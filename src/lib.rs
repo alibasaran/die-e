@@ -46,8 +46,8 @@ impl MctsConfig {
             iterations: conf.get_int("iterations")? as usize,
             c: conf.get_float("exploration_const")? as f32,
             simulate_round_limit: conf.get_int("simulate_round_limit")? as usize,
-            dirichlet_alpha: conf.get_float("DIRICHLET_ALPHA")? as f32,
-            dirichlet_epsilon: conf.get_float("DIRICHLET_EPSILON")? as f32,
+            dirichlet_alpha: conf.get_float("dirichlet_alpha")? as f32,
+            dirichlet_epsilon: conf.get_float("dirichlet_epsilon")? as f32,
         })
     }
 }
