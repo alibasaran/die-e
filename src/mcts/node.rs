@@ -1,33 +1,53 @@
-use crate::backgammon::backgammon_logic::{Actions, Backgammon};
+use crate::{backgammon::backgammon_logic::{Actions, Backgammon}, base::LearnableGame};
 use rand::{seq::SliceRandom, Rng};
 use tch::Tensor;
 use std::ops::Div;
 
 use super::node_store::NodeStore;
 
-#[derive(Clone, Debug)]
-pub struct Node {
-    pub state: Backgammon,
+#[derive(Debug)]
+pub struct Node<T: LearnableGame> {
+    pub state: T,
     pub idx: usize,
     pub parent: Option<usize>,
     pub children: Vec<usize>,
     pub visits: f32,
     pub value: f32,
     pub policy: f32,
-    pub action_taken: Option<Actions>,
-    pub expandable_moves: Vec<Actions>,
+    pub action_taken: Option<T::Move>,
+    pub expandable_moves: Vec<T::Move>,
 }
 
-impl Node {
+
+impl<T: LearnableGame> Clone for Node<T>
+where
+    T: Clone, // Make sure T is Clone
+    T::Move: Clone, // Make sure T::Move is Clone
+{
+    fn clone(&self) -> Self {
+        Node {
+            state: self.state.clone(),
+            idx: self.idx,
+            parent: self.parent.clone(),
+            children: self.children.clone(),
+            visits: self.visits,
+            value: self.value,
+            policy: self.policy,
+            action_taken: self.action_taken.clone(),
+            expandable_moves: self.expandable_moves.clone(),
+        }
+    }
+}
+
+impl <T: LearnableGame> Node<T>{
     pub fn new(
-        mut state: Backgammon,
+        mut state: T,
         idx: usize,
         parent: Option<usize>,
-        action_taken: Option<Actions>,
+        action_taken: Option<T::Move>,
         policy: f32,
     ) -> Self {
-        state.roll_die();
-        let moves = state.get_valid_moves_len_always_2();
+        let moves = state.get_valid_moves();
         Node {
             state,
             parent,
@@ -43,7 +63,7 @@ impl Node {
 
     pub fn empty() -> Self {
         Node {
-            state: Backgammon::new(),
+            state: T::new(),
             parent: None,
             idx: 0,
             children: Vec::new(),
@@ -55,38 +75,15 @@ impl Node {
         }
     }
 
-    pub fn new_with_roll(
-        mut state: Backgammon,
-        idx: usize,
-        parent: Option<usize>,
-        action_taken: Option<Actions>,
-        roll: (u8, u8),
-        policy: f32,
-    ) -> Self {
-        state.roll = roll;
-        let moves = state.get_valid_moves_len_always_2();
-        Node {
-            state,
-            parent,
-            idx,
-            children: Vec::new(),
-            action_taken,
-            expandable_moves: moves,
-            visits: 0.0,
-            value: 0.0,
-            policy,
-        }
-    }
-
     pub fn is_fully_expanded(&self) -> bool {
         self.expandable_moves.is_empty()
     }
 
     pub fn is_terminal(&self) -> bool {
-        Backgammon::check_win(self.state.board, self.state.player)
+        self.state.check_winner().is_some()
     }
 
-    pub fn ucb(&self, store: &NodeStore, c: f32) -> f32 {
+    pub fn ucb(&self, store: &NodeStore<T>, c: f32) -> f32 {
         match self.parent {
             Some(parent_idx) => {
                 let parent = store.get_node(parent_idx);
@@ -97,7 +94,7 @@ impl Node {
         }
     }
 
-    pub fn alpha_ucb(&self, store: &NodeStore, c: f32) -> f32 {
+    pub fn alpha_ucb(&self, store: &NodeStore<T>, c: f32) -> f32 {
         let q_value = if self.visits == 0.0 {
             0.0
         } else {
@@ -117,89 +114,61 @@ impl Node {
         self.value.div(self.visits)
     }
 
-    pub fn expand(&mut self, store: &mut NodeStore) -> usize {
+    pub fn expand(&mut self, store: &mut NodeStore<T>) -> usize {
         if self.expandable_moves.is_empty() {
             panic!("expand() called on node with no expandable moves")
         }
         let move_idx = rand::thread_rng().gen_range(0..self.expandable_moves.len());
 
         let action_taken = self.expandable_moves.remove(move_idx);
-        let next_state = Backgammon::get_next_state(self.state.board, &action_taken, self.state.player);
+        let mut next_state = self.state.clone();
+        next_state.apply_move(&action_taken);
 
-        let child_idx = if self.state.roll.0 != self.state.roll.1 || self.state.is_second_play {
-            store.add_node(
-                Backgammon::init_with_fields(next_state, -self.state.player, false),
-                Some(self.idx),
-                Some(action_taken),
-                None,
-                0.0,
-            )
-        } else {
-            store.add_node(
-                Backgammon::init_with_fields(next_state, self.state.player, true),
-                Some(self.idx),
-                Some(action_taken),
-                Some(self.state.roll),
-                0.0,
-            )
-        };
+        let child_idx = store.add_node(
+            next_state,
+            Some(self.idx),
+            Some(action_taken),
+            0.0,
+        );
 
         self.children.push(child_idx);
         store.set_node(self);
         child_idx
     }
 
-    pub fn alpha_expand(&mut self, store: &mut NodeStore, policy: Vec<f32>) {
+    pub fn alpha_expand(&mut self, store: &mut NodeStore<T>, policy: Vec<f32>) {
         for action in self.expandable_moves.iter() {
-            let next_state = Backgammon::get_next_state(self.state.board, action, self.state.player);
             let encoded_value = self.state.encode(action);
             let value = policy[encoded_value as usize];
+            let mut next_state = self.state.clone();
+            next_state.apply_move(&action);
 
-            let child_idx = if self.state.roll.0 != self.state.roll.1 || self.state.is_second_play {
-                store.add_node(
-                    Backgammon::init_with_fields(next_state, -self.state.player, false),
-                    Some(self.idx),
-                    Some(action.to_vec()),
-                    None,
-                    value,
-                )
-            } else {
-                store.add_node(
-                    Backgammon::init_with_fields(next_state, self.state.player, true),
-                    Some(self.idx),
-                    Some(action.to_vec()),
-                    Some(self.state.roll),
-                    value,
-                )
-            };
+            let child_idx = store.add_node(
+                next_state,
+                Some(self.idx),
+                Some(action.clone()),
+                0.0,
+            );
             self.children.push(child_idx);
         }
         store.set_node(self);
     }
 
-    pub fn alpha_expand_tensor(&mut self, store: &mut NodeStore, policy: &Tensor) {
+    pub fn alpha_expand_tensor(&mut self, store: &mut NodeStore<T>, policy: &Tensor) {
         for action in self.expandable_moves.iter() {
-            let next_state = Backgammon::get_next_state(self.state.board, action, self.state.player);
             let encoded_value = self.state.encode(action);
             let value = policy.double_value(&[encoded_value.into()]) as f32;
+            
+            let mut next_state = self.state.clone();
+            next_state.apply_move(&action);
 
-            let child_idx = if self.state.roll.0 != self.state.roll.1 || self.state.is_second_play {
-                store.add_node(
-                    Backgammon::init_with_fields(next_state, -self.state.player, false),
-                    Some(self.idx),
-                    Some(action.to_vec()),
-                    None,
-                    value,
-                )
-            } else {
-                store.add_node(
-                    Backgammon::init_with_fields(next_state, self.state.player, true),
-                    Some(self.idx),
-                    Some(action.to_vec()),
-                    Some(self.state.roll),
-                    value,
-                )
-            };
+            let child_idx = store.add_node(
+                next_state,
+                Some(self.idx),
+                Some(action.clone()),
+                0.0,
+            );
+            self.children.push(child_idx);
             self.children.push(child_idx);
         }
         store.set_node(self);
@@ -210,7 +179,7 @@ impl Node {
         let mut curr_state = self.state;
 
         for _ in 0..sim_limit {
-            if let Some(winner) = Backgammon::check_win_without_player(curr_state.board) {
+            if let Some(winner) = self.state.check_winner() {
                 return (((winner / player) + 1) / 2) as f32;
             }
             let valid_moves = curr_state.get_valid_moves();

@@ -2,30 +2,25 @@ use std::cmp::Ordering;
 
 
 
-use crate::{backgammon::backgammon_logic::{Actions, Backgammon}, MctsConfig};
+use crate::{backgammon::backgammon_logic::{Actions, Backgammon}, MctsConfig, base::LearnableGame};
 
 use super::{node::Node, node_store::NodeStore};
 
 
-pub fn mct_search(state: Backgammon, player: i8, mcts_config: &MctsConfig) -> Actions {
+pub fn mct_search<T: LearnableGame>(state: T, player: i8, mcts_config: &MctsConfig) -> T::Move {
     // Check if game already is terminal at root
-    if Backgammon::check_win_without_player(state.board).is_some() {
-        return vec![];
+    if state.check_winner().is_some() {
+        return T::EMPTY_MOVE;
     }
 
     let mut store = NodeStore::new();
-    let roll = state.roll;
-    let root_node_idx = store.add_node(state, None, None, Some(roll), 0.0);
+    let root_node_idx = store.add_node(state, None, None, 0.0);
     // let pb_iter = .progress().with_message("MCTS");
     for _ in 0..mcts_config.iterations {
         // Don't forget to save the node later into the store
         let idx = select_leaf_node(root_node_idx, &store, mcts_config.c);
         let mut selected_node = store.get_node(idx);
 
-        // if selected_node.is_terminal() {
-        //     let result = selected_node.simulate(player);
-        //     backpropagate(selected_node.idx, result, &mut store);
-        // }
 
         while !selected_node.is_fully_expanded() {
             let new_node_idx = selected_node.expand(&mut store);
@@ -37,7 +32,7 @@ pub fn mct_search(state: Backgammon, player: i8, mcts_config: &MctsConfig) -> Ac
     select_win_pct(root_node_idx, &store)
 }
 
-pub fn select_ucb(node_idx: usize, store: &NodeStore, c: f32) -> Node {
+pub fn select_ucb<T: LearnableGame>(node_idx: usize, store: &NodeStore<T>, c: f32) -> Node<T> {
     let node = store.get_node(node_idx);
     node.children
         .iter()
@@ -50,7 +45,7 @@ pub fn select_ucb(node_idx: usize, store: &NodeStore, c: f32) -> Node {
         .expect("select_ucb called on node without children!")
 }
 
-pub fn select_win_pct(node_idx: usize, store: &NodeStore) -> Actions {
+pub fn select_win_pct<T: LearnableGame>(node_idx: usize, store: &NodeStore<T>) -> T::Move {
     let node = store.get_node(node_idx);
     let best_child = node
         .children
@@ -62,12 +57,12 @@ pub fn select_win_pct(node_idx: usize, store: &NodeStore) -> Actions {
                 .unwrap_or(Ordering::Equal)
         });
     match best_child {
-        Some(child) => child.action_taken.unwrap_or(vec![]),
-        None => vec![],
+        Some(child) => child.action_taken.unwrap_or(T::EMPTY_MOVE),
+        None => T::EMPTY_MOVE,
     }
 }
 
-pub fn select_leaf_node(node_idx: usize, store: &NodeStore, c: f32) -> usize {
+pub fn select_leaf_node<T: LearnableGame>(node_idx: usize, store: &NodeStore<T>, c: f32) -> usize {
     let node = store.get_node(node_idx);
     if node.children.is_empty() {
         return node.idx;
@@ -75,7 +70,7 @@ pub fn select_leaf_node(node_idx: usize, store: &NodeStore, c: f32) -> usize {
     select_leaf_node(select_ucb(node_idx, store, c).idx, store, c)
 }
 
-pub fn backpropagate(node_idx: usize, result: f32, store: &mut NodeStore) {
+pub fn backpropagate<T: LearnableGame>(node_idx: usize, result: f32, store: &mut NodeStore<T>) {
     let node = store.get_node_as_mut(node_idx);
     node.visits += 1.0;
     node.value += result;

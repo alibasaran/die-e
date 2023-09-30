@@ -1,11 +1,20 @@
-use std::{path::Path, collections::HashMap};
+use std::{collections::HashMap, path::Path};
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use rand::{thread_rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, thread_rng};
 use tch::nn::VarStore;
 
-use crate::{constants::DEVICE, backgammon::backgammon_logic::Backgammon, mcts::{alpha_mcts::{alpha_mcts, alpha_mcts_parallel}, node_store::NodeStore, utils::get_prob_tensor_parallel}};
+use crate::{
+    backgammon::backgammon_logic::Backgammon,
+    base::LearnableGame,
+    constants::DEVICE,
+    mcts::{
+        alpha_mcts::{alpha_mcts, alpha_mcts_parallel},
+        node_store::NodeStore,
+        utils::get_prob_tensor_parallel,
+    },
+};
 
 use super::{alphazero::AlphaZero, nnet::ResNet};
 
@@ -40,10 +49,25 @@ impl AlphaZero {
             },
         }
         // Create vs copy because we move the vs into the ResNet
-        let is_model_better = match self.model_vs_model_parallel(&self.model, &ResNet::new(vs_best_model)) {
-            Some(1) => {self.pb.println("new model was better!").unwrap(); true},
-            Some(2) => {self.pb.println("current best model is still better!").unwrap(); false},
-            None => {self.pb.println("new model vs current best was inconclusive, keeping current best!").unwrap(); false}
+        let is_model_better = match self
+            .model_vs_model_parallel(&self.model, &ResNet::new(vs_best_model))
+        {
+            Some(1) => {
+                self.pb.println("new model was better!").unwrap();
+                true
+            }
+            Some(2) => {
+                self.pb
+                    .println("current best model is still better!")
+                    .unwrap();
+                false
+            }
+            None => {
+                self.pb
+                    .println("new model vs current best was inconclusive, keeping current best!")
+                    .unwrap();
+                false
+            }
             Some(_) => unreachable!(),
         };
         if is_model_better {
@@ -137,8 +161,8 @@ impl AlphaZero {
         )
         .unwrap();
 
-        let mut games: HashMap<usize, Backgammon> = HashMap::from_iter((0..total_games)
-            .map(|idx| {
+        let mut games: HashMap<usize, Backgammon> =
+            HashMap::from_iter((0..total_games).map(|idx| {
                 let mut bg = Backgammon::new();
                 if idx >= total_games / 2 {
                     bg.skip_turn();
@@ -167,11 +191,16 @@ impl AlphaZero {
             if !states_m1.is_empty() {
                 let pb_mcts_m1 = self.pb.add(
                     ProgressBar::new(self.mcts_config.iterations.try_into().unwrap())
-                    .with_message(format!("Model 1 AlphaMCTS - {} games", states_m1.len()))
-                    .with_style(sty.clone()),
-
+                        .with_message(format!("Model 1 AlphaMCTS - {} games", states_m1.len()))
+                        .with_style(sty.clone()),
                 );
-                alpha_mcts_parallel(&mut store1, &states_m1, model1, &self.mcts_config,  Some(pb_mcts_m1));
+                alpha_mcts_parallel(
+                    &mut store1,
+                    &states_m1,
+                    model1,
+                    &self.mcts_config,
+                    Some(pb_mcts_m1),
+                );
             }
             if !states_m2.is_empty() {
                 let pb_mcts_m2 = self.pb.add(
@@ -179,7 +208,13 @@ impl AlphaZero {
                         .with_message(format!("Model 2 AlphaMCTS - {} games", states_m2.len()))
                         .with_style(sty.clone()),
                 );
-                alpha_mcts_parallel(&mut store2, &states_m2, model2, &self.mcts_config, Some(pb_mcts_m2));
+                alpha_mcts_parallel(
+                    &mut store2,
+                    &states_m2,
+                    model2,
+                    &self.mcts_config,
+                    Some(pb_mcts_m2),
+                );
             }
             mcts_count += 1;
 
@@ -187,7 +222,7 @@ impl AlphaZero {
             let mut roots = store1.get_root_nodes();
             let store2_roots = store2.get_root_nodes();
             roots.extend(store2_roots);
-            
+
             let prob_tensor = get_prob_tensor_parallel(&roots)
                 .pow_(1.0 / self.config.temperature)
                 .to_device(tch::Device::Cpu);

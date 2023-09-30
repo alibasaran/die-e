@@ -7,6 +7,7 @@ pub mod alphazero;
 pub mod backgammon;
 pub mod mcts;
 pub mod versus;
+mod base;
 
 /*
 

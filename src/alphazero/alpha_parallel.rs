@@ -1,17 +1,21 @@
-use std::{fs, path::Path, collections::HashMap};
+use std::{collections::HashMap, fs, path::Path};
 
-use indicatif::{ProgressStyle, ProgressBar};
+use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 
-use crate::{backgammon::backgammon_logic::Backgammon, mcts::{node_store::NodeStore, alpha_mcts::alpha_mcts_parallel, utils::get_prob_tensor_parallel}};
+use crate::{
+    backgammon::backgammon_logic::Backgammon,
+    base::LearnableGame,
+    mcts::{
+        alpha_mcts::alpha_mcts_parallel, node_store::NodeStore, utils::get_prob_tensor_parallel,
+    },
+};
 
 use super::alphazero::{AlphaZero, MemoryFragment};
 use nanoid::nanoid;
 
-
 impl AlphaZero {
-    
-    pub fn learn_parallel(&mut self) {
+    pub fn learn_parallel<T: LearnableGame>(&mut self) {
         let run_id = nanoid!();
         let runpath_base = format!("./data/run-{}", &run_id);
         println!("Staring up run with run_id: {}", &run_id);
@@ -51,17 +55,22 @@ impl AlphaZero {
             for sp_i in 0..self.config.self_play_iterations {
                 pb_self_play.set_message(format!("Self-play iteration #{}", sp_i + 1));
 
-                let mut res = self.self_play_parallel();
+                let mut res = self.self_play_parallel::<T>();
                 memory.append(&mut res);
-                pb_self_play.set_message(format!("Saving training data... Self-play iteration #{}", sp_i + 1));
+                pb_self_play.set_message(format!(
+                    "Saving training data... Self-play iteration #{}",
+                    sp_i + 1
+                ));
 
                 // Make self play dir
                 let sp_dir_path = format!("{}/sp-{}", &lrn_path, sp_i);
                 let _ = fs::create_dir(&sp_dir_path);
                 self.save_training_data(&memory, Path::new(&sp_dir_path));
-                pb_self_play.set_message(format!("Self-play iteration #{} complete, saved training data", sp_i + 1));
+                pb_self_play.set_message(format!(
+                    "Self-play iteration #{} complete, saved training data",
+                    sp_i + 1
+                ));
                 pb_self_play.inc(1);
-
             }
             pb_self_play.set_message("Self-play finished");
 
@@ -88,13 +97,15 @@ impl AlphaZero {
         }
     }
 
-    pub fn self_play_parallel(&self) -> Vec<MemoryFragment> {
+    pub fn self_play_parallel<T: LearnableGame>(&self) -> Vec<MemoryFragment> {
         let n_batches: usize = self.config.num_self_play_batches;
-        let mut states: HashMap<usize, (usize, Backgammon)> = (0..n_batches)
+        let mut states: HashMap<usize, (usize, T)> = (0..n_batches)
             .map(|idx| {
-                let mut bg = Backgammon::new();
-                bg.roll_die();
-                (idx, (idx, bg))
+                let mut state = T::new();
+                if !T::IS_DETERMINISTIC {
+                    state.roll_die();
+                }
+                (idx, (idx, state))
             })
             .collect();
 
@@ -116,7 +127,10 @@ impl AlphaZero {
         let mut mcts_runs = 0;
         while !states.is_empty() {
             self_play_pb.set_position((n_batches - states.len()) as u64);
-            self_play_pb.set_message(format!("Self play - {} batches, on mcts run {}", n_batches, mcts_runs));
+            self_play_pb.set_message(format!(
+                "Self play - {} batches, on mcts run {}",
+                n_batches, mcts_runs
+            ));
 
             // Mutates store, does not return anything
             let mut store = NodeStore::new();
@@ -128,7 +142,13 @@ impl AlphaZero {
                     .with_finish(indicatif::ProgressFinish::AndClear),
             );
             // Fill store with games
-            alpha_mcts_parallel(&mut store, &state_to_process, &self.model, &self.mcts_config, Some(mcts_pb));
+            alpha_mcts_parallel(
+                &mut store,
+                &state_to_process,
+                &self.model,
+                &self.mcts_config,
+                Some(mcts_pb),
+            );
             mcts_runs += 1;
             // processed idx: the index of the state in remaining processed states
             // init_idx: the index of the state in the initial creation of the states vector
@@ -136,7 +156,9 @@ impl AlphaZero {
             // states_to_remove: list of finished states to remove after each iteration
             let mut states_to_remove = vec![];
             // We can do store.get_root_nodes(); as well but since we know the first 0..states.len() are the roots it is faster
-            let roots = (0..states.len()).map(|i| store.get_node_ref(i)).collect_vec();
+            let roots = (0..states.len())
+                .map(|i| store.get_node_ref(i))
+                .collect_vec();
             let prob_tensor = get_prob_tensor_parallel(&roots)
                 .pow_(1.0 / self.config.temperature) // Apply temperature
                 .to_device(tch::Device::Cpu); // Move to CPU for faster access
@@ -156,7 +178,9 @@ impl AlphaZero {
                 }
 
                 // If prob tensor of the current state is all zeros then skip turn, has_children check just in case
-                if !curr_prob_tensor.sum(None).is_nonzero() || store.get_node(processed_idx).children.is_empty() {
+                if !curr_prob_tensor.sum(None).is_nonzero()
+                    || store.get_node(processed_idx).children.is_empty()
+                {
                     n_rounds[*init_idx] += 1;
                     state.skip_turn();
                     continue;
@@ -167,19 +191,26 @@ impl AlphaZero {
 
                 // Save results to memory
                 memories[*init_idx].push(MemoryFragment {
-                    outcome: state.player,
+                    outcome: state.get_player(),
                     ps: curr_prob_tensor,
                     state: state.as_tensor(),
                 });
 
                 // Decode and play selected action
                 let decoded_action = state.decode(selected_action as u32);
+                let valid_moves = state.get_valid_moves();
+                assert!(
+                    valid_moves.contains(&decoded_action),
+                    "Valid moves: {:?} does not contain decoded move: {:?}",
+                    valid_moves,
+                    decoded_action
+                );
                 state.apply_move(&decoded_action);
 
                 // Increment round
                 n_rounds[*init_idx] += 1;
 
-                if let Some(winner) = Backgammon::check_win_without_player(state.board) {
+                if let Some(winner) = state.check_winner() {
                     let curr_memory = memories[*init_idx].iter().map(|mem| MemoryFragment {
                         outcome: if mem.outcome == winner { 1 } else { -1 },
                         ps: mem.ps.shallow_clone(),
@@ -196,5 +227,4 @@ impl AlphaZero {
         }
         all_memories
     }
-
 }

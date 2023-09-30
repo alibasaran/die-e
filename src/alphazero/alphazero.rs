@@ -19,7 +19,7 @@ use super::nnet::ResNet;
 use crate::{
     backgammon::backgammon_logic::{Backgammon, Actions},
     constants::{DEFAULT_TYPE, DEVICE},
-    mcts::alpha_mcts::alpha_mcts, MctsConfig,
+    mcts::alpha_mcts::alpha_mcts, MctsConfig, base::LearnableGame,
 };
 
 #[derive(Debug)]
@@ -136,10 +136,10 @@ impl AlphaZero {
         dist.sample(&mut rng)
     }
 
-    pub fn get_next_move_for_state(&self, current_state: &Backgammon) -> Actions {
+    pub fn get_next_move_for_state<T: LearnableGame>(&self, current_state: &T) -> T::Move {
         let mut pi = match alpha_mcts(current_state, &self.model, &self.mcts_config) {
             Some(pi) => pi,
-            None => return vec![]
+            None => return T::EMPTY_MOVE
         };
         let temperatured_pi = pi.pow_(1.0 / self.config.temperature);
         let selected_action = AlphaZero::weighted_select_tensor_idx(&temperatured_pi);
@@ -161,8 +161,8 @@ impl AlphaZero {
             }));
         // One channel for outcomes, one channel for ps, one channel for states,
         // Because mps is not supported we convert to cpu
-        let ps = Tensor::stack(&ps_values, 0).to_device(tch::Device::Cpu).unsqueeze(2);
-        let states = Tensor::stack(&states, 0).to_device(tch::Device::Cpu).squeeze();
+        let ps = Tensor::stack(&ps_values, 0).to_device(tch::Device::Cpu);
+        let states = Tensor::concat(&states, 0).to_device(tch::Device::Cpu);
         let outcomes = Tensor::from_slice(&outcomes);
 
         match (

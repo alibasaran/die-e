@@ -2,12 +2,12 @@ use rand::thread_rng;
 use rand_distr::{Dirichlet, Distribution};
 use tch::Tensor;
 
-use crate::constants::{DEVICE, DEFAULT_TYPE};
+use crate::{constants::{DEVICE, DEFAULT_TYPE}, base::LearnableGame};
 
 use super::{node::Node, node_store::NodeStore};
 
-impl Node {
-    pub fn apply_dirichlet(&self, alpha: f32, eps: f32, store: &mut NodeStore) {
+impl <T: LearnableGame> Node <T> {
+    pub fn apply_dirichlet(&self, alpha: f32, eps: f32, store: &mut NodeStore<T>) {
         assert!(
             self.visits > 0.,
             "unable to apply dirichlet, node has no visits!"

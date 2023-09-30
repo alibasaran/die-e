@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt, vec};
 use tch::Tensor;
 
-use crate::constants::DEFAULT_TYPE;
+use crate::{constants::DEFAULT_TYPE, versus::Game, base::LearnableGame};
 
 // (the board itself, pieces_hit, pieces_collected)
 pub type Board = ([i8; 24], (u8, u8), (u8, u8));
@@ -71,8 +71,14 @@ impl Default for Backgammon {
     }
 }
 
-impl Backgammon {
-    pub fn new() -> Self {
+impl LearnableGame for Backgammon {
+
+    type Move = Actions;
+
+    const EMPTY_MOVE: Self::Move = vec![];
+    const IS_DETERMINISTIC: bool = false;
+
+    fn new() -> Self {
         Backgammon {
             board: (
                 [
@@ -88,17 +94,17 @@ impl Backgammon {
         }
     }
 
-    pub fn init_with_fields(board: Board, player: i8, is_second_play: bool) -> Self {
-        Backgammon {
-            board,
-            roll: (0, 0),
-            player,
-            is_second_play,
-            id: 0
-        }
+    fn roll_die(&mut self) -> (u8, u8) {
+        let mut rng = rand::thread_rng();
+        self.roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
+        self.roll
     }
 
-    pub fn to_pretty_str(&self) -> String {
+    fn check_winner(&self) -> Option<i8> {
+        Backgammon::check_win_without_player(self.board)
+    }
+
+    fn to_pretty_str(&self) -> String {
         let board = self.board.0;
         let board_len = board.len();
 
@@ -164,13 +170,7 @@ impl Backgammon {
         format!("{}\n{}\n{}\n{}", info_string, line_break, final_board_str, line_break)
     }
 
-    pub fn roll_die(&mut self) -> (u8, u8) {
-        let mut rng = rand::thread_rng();
-        self.roll = (rng.gen_range(1..=6), rng.gen_range(1..=6));
-        self.roll
-    }
-
-    pub fn apply_move(&mut self, actions: &Actions) {
+    fn apply_move(&mut self, actions: &Actions) {
         let next_state = Self::get_next_state(self.board, actions, self.player);
         self.board = next_state;
         if self.roll.0 == self.roll.1 && !self.is_second_play {
@@ -182,18 +182,22 @@ impl Backgammon {
         }
     }
 
-    pub fn skip_turn(&mut self) {
+    fn get_player(&self) -> i8 {
+        self.player
+    }
+    
+    fn skip_turn(&mut self) {
         self.is_second_play = false;
         self.player *= -1;
         self.roll_die();
     }
-
-    pub fn as_tensor(&self) -> Tensor {
+    
+    fn as_tensor(&self) -> Tensor {
         assert!(self.roll != (0, 0), "die has not been rolled!");
-
+    
         let board = self.board;
         let full_options = (DEFAULT_TYPE, tch::Device::Cpu);
-
+    
         let board_tensor = Tensor::from_slice(&board.0)
             .view([4, 6, 1]);
         let player_tensor = Tensor::full(24, self.player as i64, full_options).view([4, 6, 1]);
@@ -205,7 +209,7 @@ impl Backgammon {
             0,
         )
         .view([4, 6, 1]);
-
+    
         let collect_tensor = Tensor::cat(
             &[
                 Tensor::full(12, board.2 .0 as i64, full_options),
@@ -214,7 +218,7 @@ impl Backgammon {
             0,
         )
         .view([4, 6, 1]);
-
+    
         let roll_tensor = Tensor::cat(
             &[
                 Tensor::full(12, self.roll.0 as i64, full_options),
@@ -223,13 +227,13 @@ impl Backgammon {
             0,
         )
         .view([4, 6, 1]);
-
+    
         let second_play_tensor = if self.is_second_play {
             Tensor::full(24, 1, full_options).view([4, 6, 1])
         } else {
             Tensor::full(24, 0, full_options).view([4, 6, 1])
         };
-
+    
         Tensor::stack(
             &[
                 board_tensor,
@@ -242,6 +246,181 @@ impl Backgammon {
             2,
         )
         .permute([3, 2, 0, 1])
+    }
+
+    fn get_id(&self) -> usize {
+        self.id
+    }
+
+    fn set_id(&mut self, new_id: usize) {
+        self.id = new_id
+    }
+
+    fn encode(&self, actions: &Actions) -> u32 {
+        assert!(actions.len() <= 2, "encoding for actions > 2 is not implemented!");
+    
+        // return special case for when there are no actions
+        if actions.is_empty() {
+            return 1351;
+        }
+        
+        // get the roll and the high and low roll values
+        let roll = self.roll;
+        let (_high_roll, low_roll) = if roll.0 > roll.1 { (roll.0, roll.1) } else { (roll.1, roll.0) };
+        let mut low_roll_first_flag = false;
+        let mut low_roll_second_flag = false;
+    
+        // get the minimum roll values required to be able to play the actions provided
+        let mut minimum_rolls = actions.iter().map(|&(from, to)| {
+            match (from, to) {
+                (-1, t) if t < 6 => (t + 1) as u8,
+                (-1, t) if t > 17 => (24 - t) as u8,
+                (f, -1) if f < 6 => (f - (-1)) as u8,
+                (f, -1) if f > 17 => (24 - f) as u8,
+                (f, t) => (f - t).unsigned_abs(),
+            }
+        }).collect::<Vec<u8>>();
+    
+        // if only a single move is played, set the second minimum roll to be 0
+        if minimum_rolls.len() == 1 {minimum_rolls.push(0);}
+    
+        /*
+         * use base 26 encoding to encode the actions
+         * the values 0-23 is reserved for 'normal' moves (i.e. moves that are not from the bar or are not collection moves)
+         * and corresponds to the 'from' value of the action
+         * 24 is reserved for moves from the bar
+         * 25 is reserved for single moves (i.e. the value of the non-existent 'second move' of a single-move action)
+         * add the corresponding value for the first move and the corresponding value for the second move times 26
+         */ 
+        let mut encode_sum = 0;
+        for (i, &(from, to)) in actions.iter().enumerate() {
+            match i {
+                0 => {match (from, to) {
+                    (-1, t) if t < 6 => {
+                        encode_sum += 24;
+
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        let distance = (t - (-1)) as u8;
+                        low_roll_first_flag = distance == low_roll;
+                    },
+                    (-1, t) if t > 17 => {
+                        encode_sum += 24;
+
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        let distance = (24 - t) as u8;
+                        low_roll_first_flag = distance == low_roll;
+                    },
+                    (f, -1) if f < 6 => {encode_sum += f as u32;},
+                    (f, -1) if f > 17 => {encode_sum += f as u32;},
+                    (f, _) => {
+                        encode_sum += f as u32; 
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        low_roll_first_flag = minimum_rolls.first().unwrap() == &low_roll;
+                    },
+                }},
+                1 => {match (from, to) {
+                    (-1, t) if t < 6 => {
+                        encode_sum += 26 * 24;
+
+                        // raise the low_roll_second_flag if the first move is certainly the low roll
+                        let distance = (t - (-1)) as u8;
+                        low_roll_second_flag = distance == low_roll;
+                    },
+                    (-1, t) if t > 17 => {
+                        encode_sum += 26 * 24;
+
+                        // raise the low_roll_first_flag if the first move is certainly the low roll
+                        let distance = (24 - t) as u8;
+                        low_roll_second_flag = distance == low_roll;
+                    },
+                    (f, -1) if f < 6 => {encode_sum += 26 * (f as u32);},
+                    (f, -1) if f > 17 => {encode_sum += 26 * (f as u32);},
+                    (f, _) => {
+                        encode_sum += 26 * (f as u32);
+                        // raise the low_roll_second flag if the first move is certainly the low roll
+                        low_roll_second_flag = minimum_rolls.get(1).unwrap() == &low_roll;
+                    },
+                }},
+                _ => unreachable!(),
+            }
+        }
+    
+        // add 26 * 25 to encode_sum if the action has a single move and reset low_roll_first_flag
+        if actions.get(1).is_none() {low_roll_first_flag = false; encode_sum += 26 * 25}
+    
+        // compute whether the high roll was played first
+        let high_roll_first = if low_roll_first_flag {false} else if low_roll_second_flag {true} else if minimum_rolls[1] != 0 {minimum_rolls[0] >= minimum_rolls[1]} else {minimum_rolls[0] > low_roll};
+    
+        // add 676 to the final value if the high roll was played first
+        if high_roll_first { encode_sum } else { encode_sum + 676 }
+    }
+    
+    fn decode(&self, action: u32) -> Actions {
+        // decoding for the special value (1351) for empty actions
+        if action == 1351 {
+            return vec![];
+        }
+    
+        let roll = self.roll;
+        let player = self.player;
+        let high_roll_first = action < 676;
+
+        /*
+         * extract the from values of the first and second action
+         * the from value '24' suggests a move from the bar
+         * note that the from2 value will be 25 if the action has a single move
+         */
+        let (from1, from2) = (if high_roll_first { action } else { action - 676 } % 26, 
+                                        if high_roll_first { action } else { action - 676 } / 26);
+        let single_action = from2 == 25;
+        let (high_roll, low_roll) = if roll.0 > roll.1 { (roll.0, roll.1) } else { (roll.1, roll.0) };
+        let (mut from1_i8, mut from2_i8) = (from1 as i8, from2 as i8);
+        let (low_roll_i8, high_roll_i8) = (low_roll as i8, high_roll as i8);
+    
+        // convert from values from 24 to -1 only if the player is the second player (helps with computation)
+        if from1_i8 == 24 && player == 1 { from1_i8 = -1; }
+        if from2_i8 == 24 && player == 1 { from2_i8 = -1; }
+    
+        // extract 'to' values
+        let (mut to1, mut to2) = if high_roll_first {
+            (from1_i8 + high_roll_i8 * player, from2_i8 + low_roll_i8 * player)
+        } else {
+            (from1_i8 + low_roll_i8 * player, from2_i8 + high_roll_i8 * player)
+        };
+    
+        // convert the 'to' and 'from' values from -1
+        if to1 >= 24 || to1 <= -1 { to1 = -1; }
+        if to2 >= 24 || to2 <= -1 { to2 = -1; }
+        if from1_i8 == 24 { from1_i8 = -1; }
+        if from2_i8 == 24 { from2_i8 = -1; }
+    
+        if single_action { vec![(from1_i8, to1)] } else { vec![(from1_i8, to1), (from2_i8, to2)] }
+    }
+
+    fn get_valid_moves(&self) -> Vec<Actions> {
+        assert!(self.roll != (0, 0), "die has not been rolled!");
+    
+        let all_moves: Vec<u8> = match self.roll {
+            (r0, r1) if r0 > r1 => vec![r0, r1],
+            (r0, r1) => vec![r1, r0],
+        };
+        let action_trees = Self::_get_action_trees(&all_moves, self.board, self.player);
+        // parse trees into actions here
+        let actions = Self::extract_sequences_list(action_trees);
+        Self::remove_duplicate_states(self.board, actions, self.player)
+    }
+}
+
+impl Backgammon {
+
+    pub fn init_with_fields(board: Board, player: i8, is_second_play: bool) -> Self {
+        Backgammon {
+            board,
+            roll: (0, 0),
+            player,
+            is_second_play,
+            id: 0
+        }
     }
 
     pub fn display_board(&self) {
@@ -408,32 +587,20 @@ impl Backgammon {
         }
     }
 
-    pub fn get_valid_moves(&self) -> Vec<Actions> {
-        assert!(self.roll != (0, 0), "die has not been rolled!");
+    // pub fn get_valid_moves(&self) -> Vec<Actions> {
+    //     assert!(self.roll != (0, 0), "die has not been rolled!");
 
-        let all_moves: Vec<u8> = match self.roll {
-            (r0, r1) if r0 == r1 => vec![r0; 4],
-            (r0, r1) if r0 > r1 => vec![r0, r1],
-            (r0, r1) => vec![r1, r0],
-        };
-        let action_trees = Self::_get_action_trees(&all_moves, self.board, self.player);
-        // parse trees into actions here
-        let actions = Self::extract_sequences_list(action_trees);
-        Self::remove_duplicate_states(self.board, actions, self.player)
-    }
+    //     let all_moves: Vec<u8> = match self.roll {
+    //         (r0, r1) if r0 == r1 => vec![r0; 4],
+    //         (r0, r1) if r0 > r1 => vec![r0, r1],
+    //         (r0, r1) => vec![r1, r0],
+    //     };
+    //     let action_trees = Self::_get_action_trees(&all_moves, self.board, self.player);
+    //     // parse trees into actions here
+    //     let actions = Self::extract_sequences_list(action_trees);
+    //     Self::remove_duplicate_states(self.board, actions, self.player)
+    // }
 
-    pub fn get_valid_moves_len_always_2(&self) -> Vec<Actions> {
-        assert!(self.roll != (0, 0), "die has not been rolled!");
-
-        let all_moves: Vec<u8> = match self.roll {
-            (r0, r1) if r0 > r1 => vec![r0, r1],
-            (r0, r1) => vec![r1, r0],
-        };
-        let action_trees = Self::_get_action_trees(&all_moves, self.board, self.player);
-        // parse trees into actions here
-        let actions = Self::extract_sequences_list(action_trees);
-        Self::remove_duplicate_states(self.board, actions, self.player)
-    }
 
     fn _get_action_trees(moves: &[u8], state: Board, player: i8) -> Vec<ActionNode> {
         let num_pieces_hit = Self::get_pieces_hit(state, player);

@@ -6,12 +6,12 @@ use itertools::Itertools;
 
 use tch::Tensor;
 
-use crate::{backgammon::backgammon_logic::Backgammon, alphazero::nnet::ResNet, constants::DEVICE, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MctsConfig};
+use crate::{backgammon::backgammon_logic::Backgammon, alphazero::nnet::ResNet, constants::DEVICE, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MctsConfig, base::LearnableGame};
 
 use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 
 
-fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore, c: f32) -> usize {
+fn alpha_select_leaf_node<T: LearnableGame>(node_idx: usize, store: &NodeStore<T>, c: f32) -> usize {
     let node = store.get_node(node_idx);
     if node.children.is_empty() {
         return node.idx;
@@ -19,7 +19,7 @@ fn alpha_select_leaf_node(node_idx: usize, store: &NodeStore, c: f32) -> usize {
     alpha_select_leaf_node(select_alpha(node_idx, store, c).idx, store, c)
 }
 
-fn select_alpha(node_idx: usize, store: &NodeStore, c: f32) -> Node {
+fn select_alpha<T: LearnableGame>(node_idx: usize, store: &NodeStore<T>, c: f32) -> Node<T> {
     let node = store.get_node(node_idx);
     node.children
         .iter()
@@ -32,7 +32,7 @@ fn select_alpha(node_idx: usize, store: &NodeStore, c: f32) -> Node {
         .expect("select_alpha called on node without children!")
 }
 
-pub fn apply_dirichlet_to_root(root_idx: usize, store: &mut NodeStore, net: &ResNet, state: &Backgammon, mcts_config: &MctsConfig) {
+pub fn apply_dirichlet_to_root<T: LearnableGame>(root_idx: usize, store: &mut NodeStore<T>, net: &ResNet, state: &impl LearnableGame, mcts_config: &MctsConfig) {
     let mut root_node = store.get_node(root_idx);
     
     let (mut policy, _) = net.forward_t(&state.as_tensor().to_device(*DEVICE), false);
@@ -52,17 +52,16 @@ pub fn apply_dirichlet_to_root(root_idx: usize, store: &mut NodeStore, net: &Res
     store.set_node(&root_node)
 }
 
-pub fn alpha_mcts(state: &Backgammon, net: &ResNet, mcts_config: &MctsConfig) -> Option<Tensor> {
+pub fn alpha_mcts<T: LearnableGame>(state: &T, net: &ResNet, mcts_config: &MctsConfig) -> Option<Tensor> {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     
     // Check if game already is terminal at root
-    if Backgammon::check_win_without_player(state.board).is_some() {
+    if state.check_winner().is_some() {
         return None;
     }
     let mut store = NodeStore::new();
-    let roll = state.roll;
-    let root_node_idx = store.add_node(*state, None, None, Some(roll), 0.0);
+    let root_node_idx = store.add_node(*state, None, None, 0.0);
     
     apply_dirichlet_to_root(root_node_idx, &mut store, net, state, mcts_config);
     
@@ -83,7 +82,7 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet, mcts_config: &MctsConfig) ->
             selected_node.alpha_expand(&mut store, policy_vec);
             value = eval.double_value(&[0]) as f32;
         } else {
-            value = ((Backgammon::check_win_without_player(selected_node.state.board).unwrap() + 1) / 2) as f32;
+            value = ((state.check_winner().unwrap() + 1) / 2) as f32;
         }
 
         backpropagate(idx, value, &mut store);
@@ -95,7 +94,7 @@ pub fn alpha_mcts(state: &Backgammon, net: &ResNet, mcts_config: &MctsConfig) ->
 /*
     Similar to alpha_mcts, however this function mutates the NodeStore rather than returning probabilities
 */
-pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &ResNet, mcts_config: &MctsConfig, pb: Option<ProgressBar>) {
+pub fn alpha_mcts_parallel<T: LearnableGame>(store: &mut NodeStore<T>, states: &[T], net: &ResNet, mcts_config: &MctsConfig, pb: Option<ProgressBar>) {
     // Set no_grad_guard
     let _guard = tch::no_grad_guard();
     assert!(store.is_empty(), "AlphaMCTS paralel expects an empty store");
@@ -115,7 +114,7 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
 
     // Create root node for each game state
     for (_, state) in states.iter().enumerate() {
-        store.add_node(*state, None, None, Some(state.roll), 0.0);
+        store.add_node(*state, None, None, 0.0);
     }
 
     // Expand root node for each game state
@@ -157,8 +156,8 @@ pub fn alpha_mcts_parallel(store: &mut NodeStore, states: &[Backgammon], net: &R
             let idx = alpha_select_leaf_node(*game_idx, store, mcts_config.c);
             let selected_node = store.get_node(idx);
     
-            if selected_node.is_terminal() {
-                let value = ((Backgammon::check_win_without_player(selected_node.state.board).unwrap() + 1) / 2) as f32;
+            if let Some(winner) = selected_node.state.check_winner() {
+                let value = ((winner + 1) / 2) as f32;
                 backpropagate(idx, value, store);
                 ended_games.push(*game_idx);
             } else {

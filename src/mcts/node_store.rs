@@ -2,61 +2,55 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::backgammon::backgammon_logic::{Backgammon, Actions};
+use crate::{backgammon::backgammon_logic::{Backgammon, Actions}, base::LearnableGame};
 
 use super::node::Node;
 
-#[derive(Clone)]
-pub struct NodeStore {
-    nodes: Vec<Node>,
+pub struct NodeStore<T: LearnableGame> {
+    nodes: Vec<Node<T>>,
 }
 
-impl fmt::Display for NodeStore {
+impl <T: LearnableGame> fmt::Display for NodeStore<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "NodeStore<size={}>", self.nodes.len())
     }
 }
 
-impl NodeStore {
+impl <T: LearnableGame> NodeStore<T> {
     pub fn new() -> Self {
         NodeStore { nodes: vec![] }
     }
 
-    pub fn get_root_nodes(&self) -> Vec<&Node> {
+    pub fn get_root_nodes(&self) -> Vec<&Node<T>> {
         self.nodes.iter().filter(|&node| node.parent.is_none()).collect_vec()
     }
 
     pub fn add_node(
         &mut self,
-        state: Backgammon,
+        state: T,
         parent: Option<usize>,
-        action_taken: Option<Actions>,
-        roll: Option<(u8, u8)>,
+        action_taken: Option<T::Move>,
         policy: f32,
     ) -> usize {
         let idx = self.nodes.len();
-        let new_node = if let Some(roll) = roll {
-            Node::new_with_roll(state, idx, parent, action_taken, roll, policy)
-        } else {
-            Node::new(state, idx, parent, action_taken, policy)
-        };
+        let new_node = Node::new(state, idx, parent, action_taken, policy);
         self.nodes.push(new_node);
         idx
     }
 
-    pub fn set_node(&mut self, node: &Node) {
-        self.nodes[node.idx] = node.clone()
+    pub fn set_node(&mut self, node: &Node<T>) {
+        self.nodes[node.idx] = node.clone();
     }
 
-    pub fn get_node(&self, idx: usize) -> Node {
+    pub fn get_node(&self, idx: usize) -> Node<T> {
         self.nodes.get(idx).unwrap().clone()
     }
 
-    pub fn get_node_ref(&self, idx: usize) -> &Node {
+    pub fn get_node_ref(&self, idx: usize) -> &Node<T> {
         self.nodes.get(idx).unwrap()
     }
 
-    pub fn get_node_as_mut(&mut self, idx: usize) -> &mut Node {
+    pub fn get_node_as_mut(&mut self, idx: usize) -> &mut Node<T> {
         &mut self.nodes[idx]
     }
 

@@ -1,24 +1,27 @@
-use core::panic;
+use core::{panic};
 use std::{
     collections::HashMap,
-    time::Duration, path::{Path, PathBuf}, fs, io,
+    time::Duration, path::{Path, PathBuf}, fs, io, os,
 };
 
 use config::Config;
 use die_e::{
-    backgammon::backgammon_logic::Backgammon,
-    constants::DEVICE, alphazero::alphazero::{AlphaZero, AlphaZeroConfig}, MctsConfig, versus::{Agent, Player, play, save_game},
+    alphazero::alphazero::{AlphaZero, MemoryFragment}, MctsConfig, versus::{Agent, Player, play, save_game, print_game}, backgammon::backgammon_logic::Backgammon
 };
 use itertools::Itertools;
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tch::{Tensor, nn::VarStore};
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 struct Args {
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
+
+    #[clap(short, long, value_enum)]
+    game: LearnableGames,
 
     // number of cpu's to use while learning, default is half of total cpus
     #[arg(short, long)]
@@ -69,11 +72,56 @@ enum Commands {
         // The idx of the self_play iteration, learn_idx must also be given
         #[arg(short, long)]
         self_play: Option<String>,
+    },
+    Replay {
+        // path of the game to load
+        #[arg(short, long)]
+        game_path: PathBuf
     }
+}
+#[derive(ValueEnum, Debug, Clone)]
+enum LearnableGames {
+    TicTacToe, Backgammon
 }
 
 fn main() {
+    // let kill = true;
+
+    // let builder = Config::builder()
+    //     .add_source(config::File::new("./config", config::FileFormat::Toml));
+
+    // let config = match builder.build() {
+    //     Ok(config) => config,
+    //     Err(e) => panic!("Unable to build config, caught error {}", e),
+    // };
+
+    // let az = AlphaZero::from_config(Some(PathBuf::from("./models/10_ep_model.ot")), &config);
+
+    // let mut state = Backgammon::init_with_fields((
+    //     [
+    //         2, 0, 0, 0, 0, -5, 0, -3, 0, 0, 0, 5, -5, 0, 0, 0, 3, 0, 3, 1, 1, 0, 0, -2,
+    //     ],
+    //     (0,0), (0, 0)), -1, false
+    // );
+
+    // state.roll = (4, 3);
+    // println!("Valid moves {:?}", state.get_valid_moves_len_always_2());
+    // println!("{}", state.to_pretty_str());
+    // let nx = az.get_next_move_for_state(&state);
+    // println!("Next move: {:?}", nx);
+    // state.apply_move(&nx);
+    // println!("{}", state.to_pretty_str());
+    // if kill {
+    //     return;
+    // }
+
     let args = Args::parse();
+
+    // let selected_game: Box<dyn LearnableGame> = match args.game.to_ascii_lowercase().as_str() {
+    //     "backgammon" => Backgammon,
+    //     "tictactoe" => unimplemented!(), 
+    //     _ => panic!("specified game is not supported!"), 
+    // }
     // Load config
     let config_path = args.config.unwrap_or(
         PathBuf::from("./config")
@@ -88,7 +136,7 @@ fn main() {
 
     let n_cpus_in_device = num_cpus::get();
     let n_cpus = match args.n_cpus {
-        Some(n) => if n_cpus_in_device > n {
+        Some(n) => if n > n_cpus_in_device {
             panic!("Value provided in n_cpus flag ({}) is larger than total cpus in the device ({})!", n, n_cpus_in_device)
         } else {n},
         None => n_cpus_in_device / 2,
@@ -102,7 +150,10 @@ fn main() {
     match args.command {
         Commands::Learn { model_path } => {
             let mut az = AlphaZero::from_config(model_path, &config);
-            az.learn_parallel();
+            match args.game {
+                LearnableGames::TicTacToe => todo!("implement tictactoe!"),
+                LearnableGames::Backgammon => az.learn_parallel::<Backgammon>()
+            }
         },
         Commands::Play { agent_one, model_path_one, agent_two, model_path_two, output_path } => {
             let agent_one_type = match agent_one {
@@ -129,8 +180,8 @@ fn main() {
                 Some(output) => output,
                 None => panic!("No output path given.")
             };
-
-            if !output_path.is_dir() {panic!("Output path is not a directory.")}
+            assert!(output_path.is_dir(), "Output path is not a directory.");
+            assert!(output_path.exists(), "Output dir does not exist!");
 
             let alphazero_one = model_path_one
                 .map(|model_path| AlphaZero::from_config(Some(model_path), &config));
@@ -141,7 +192,11 @@ fn main() {
             let player1 = Player{player_type: agent_one_type, model: alphazero_one};
             let player2 = Player{player_type: agent_two_type, model: alphazero_two};
 
-            let play_result = play(player1, player2, &MctsConfig::from_config(&config).unwrap());
+            let play_fn = match args.game {
+                LearnableGames::TicTacToe => todo!("implement tictactoe!"),
+                LearnableGames::Backgammon => play::<Backgammon>
+            };
+            let play_result = play_fn(player1, player2, &MctsConfig::from_config(&config).unwrap());
             println!("{}\n Saving games...", play_result);
             for game in play_result.games {
                 save_game(&game, output_path.to_str().unwrap()).unwrap()
@@ -163,9 +218,9 @@ fn main() {
             }
             let mut paths_to_load = vec![];
             let _ = get_all_paths_rec(data_path, &mut paths_to_load);
-            let mut training_data = paths_to_load.iter().flat_map(|p| 
+            let mut training_data: Vec<MemoryFragment> = paths_to_load.par_iter().flat_map(|p| 
                 AlphaZero::load_training_data(p.as_path())
-            ).collect_vec();
+            ).collect();
 
             println!("Total memory fragments: {}", &training_data.len());
             
@@ -180,6 +235,16 @@ fn main() {
                 Err(e) => panic!("unable to save trained model {}", e),
             }
         },
+        Commands::Replay { game_path } => {
+            let print_fn = match args.game {
+                LearnableGames::TicTacToe => todo!("implement tictactoe!"),
+                LearnableGames::Backgammon => print_game::<Backgammon>,
+            };
+            match print_fn(game_path, true) {
+                Ok(_) => (),
+                Err(e) => panic!("unable to print game, {}", e),
+            }
+        }
     }
 }
 

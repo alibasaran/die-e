@@ -5,15 +5,15 @@ use tch::Tensor;
 
 use crate::{
     backgammon::backgammon_logic::Backgammon,
-    constants::{ACTION_SPACE_SIZE, DEVICE, DEFAULT_TYPE},
+    constants::{ACTION_SPACE_SIZE, DEVICE, DEFAULT_TYPE}, base::LearnableGame,
 };
 
 use super::{node::Node, node_store::NodeStore};
 
-pub fn get_prob_tensor(
-    state: &Backgammon,
+pub fn get_prob_tensor<T: LearnableGame>(
+    state: &T,
     root_node_idx: usize,
-    store: &NodeStore
+    store: &NodeStore<T>
 ) -> Option<Tensor> {
     let children = store.get_node(root_node_idx).children;
     if children.is_empty() {
@@ -40,7 +40,7 @@ pub fn get_prob_tensor(
  * returns a tensor of action pick probabilities N 1352
  * where tensor of size 1352 contains mostly zeros with values on only the encoded values of the node's expandable moves
  */
-pub fn get_prob_tensor_parallel(nodes: &[&Node]) -> Tensor {
+pub fn get_prob_tensor_parallel<T: LearnableGame>(nodes: &[&Node<T>]) -> Tensor {
     let mut result = Tensor::zeros([nodes.len() as i64, ACTION_SPACE_SIZE], (DEFAULT_TYPE, *DEVICE));
     let (xs, ys, vals): (Vec<i32>, Vec<i32>, Vec<f32>) = multiunzip(nodes.iter().enumerate().flat_map(|(processed_idx, &node)| {
         node.expandable_moves.iter().map(move |actions| {
@@ -57,7 +57,7 @@ pub fn get_prob_tensor_parallel(nodes: &[&Node]) -> Tensor {
     result / sum
 }
 
-pub fn turn_policy_to_probs_tensor_parallel(store: &NodeStore, node_indices: Vec<usize>, policy: &Tensor) -> Tensor {
+pub fn turn_policy_to_probs_tensor_parallel<T: LearnableGame>(store: &NodeStore<T>, node_indices: Vec<usize>, policy: &Tensor) -> Tensor {
     let mut mask = policy.zeros_like();
     let (xs, ys): (Vec<i32>, Vec<i32>) = node_indices.iter().flat_map(|i| {
         let node = store.get_node_ref(*i);
@@ -71,7 +71,7 @@ pub fn turn_policy_to_probs_tensor_parallel(store: &NodeStore, node_indices: Vec
     selected_moves_tensor / moves_sum
 }
 
-pub fn turn_policy_to_probs_tensor(policy: &Tensor, node: &Node) -> Tensor {
+pub fn turn_policy_to_probs_tensor<T: LearnableGame>(policy: &Tensor, node: &Node<T>) -> Tensor {
     let mut result = Tensor::zeros_like(policy);
     let indices = node.expandable_moves.iter().map(|m| {
         node.state.encode(m) as i32
@@ -83,7 +83,7 @@ pub fn turn_policy_to_probs_tensor(policy: &Tensor, node: &Node) -> Tensor {
     result / sum
 }
 
-pub fn turn_policy_to_probs(policy: &Tensor, node: &Node) -> Vec<f32> {
+pub fn turn_policy_to_probs<T: LearnableGame>(policy: &Tensor, node: &Node<T>) -> Vec<f32> {
     let mut values: Vec<f32> = vec![0.0; 1352];
     let mut encoded_values: Vec<usize> = Vec::with_capacity(node.expandable_moves.len());
     for action in &node.expandable_moves {

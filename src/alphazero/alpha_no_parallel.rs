@@ -1,14 +1,15 @@
-use crate::{backgammon::backgammon_logic::Backgammon, mcts::alpha_mcts::alpha_mcts};
+use crate::{
+    backgammon::backgammon_logic::Backgammon, base::LearnableGame, mcts::alpha_mcts::alpha_mcts,
+};
 
 use super::alphazero::{AlphaZero, MemoryFragment};
 
-
 impl AlphaZero {
-    pub fn learn(&mut self) {
+    pub fn learn<T: LearnableGame>(&mut self) {
         for i in 0..self.config.learn_iterations {
             let mut memory: Vec<MemoryFragment> = vec![];
             for _ in 0..self.config.self_play_iterations {
-                let mut res = self.self_play();
+                let mut res = self.self_play::<T>();
                 memory.append(&mut res);
             }
             for _ in 0..self.config.num_epochs {
@@ -28,10 +29,12 @@ impl AlphaZero {
         }
     }
 
-    pub fn self_play(&self) -> Vec<MemoryFragment> {
+    pub fn self_play<T: LearnableGame>(&self) -> Vec<MemoryFragment> {
         println!("Started self play");
-        let mut bg = Backgammon::new();
-        bg.roll_die();
+        let mut state = T::new();
+        if !T::IS_DETERMINISTIC {
+            state.roll_die();
+        }
 
         let mut memory: Vec<MemoryFragment> = vec![];
         // Is second play is a workaround for the case where doubles are rolled
@@ -39,16 +42,12 @@ impl AlphaZero {
         // rather than the usual two that would be played on a normal role
         // So we feed doubles into the network as two back to back normal roles from the same player
         loop {
-            println!("Rolled die: {:?}", bg.roll);
-            println!("Player: {}", bg.player);
-            bg.display_board();
+            println!("{}", state.to_pretty_str());
             // Get probabilities from mcts
-            let mut pi = match alpha_mcts(&bg, &self.model, &self.mcts_config) {
+            let mut pi = match alpha_mcts(&state, &self.model, &self.mcts_config) {
                 Some(pi) => pi,
                 None => {
-                    println!("No valid moves!");
-                    bg.player *= -1;
-                    bg.roll_die();
+                    state.skip_turn();
                     continue;
                 }
             };
@@ -60,17 +59,17 @@ impl AlphaZero {
 
             // Save results to memory
             memory.push(MemoryFragment {
-                outcome: bg.player,
+                outcome: state.get_player(),
                 ps: pi,
-                state: bg.as_tensor(),
+                state: state.as_tensor(),
             });
 
             // Decode and play selected action
-            let decoded_action = bg.decode(selected_action as u32);
+            let decoded_action = state.decode(selected_action as u32);
             println!("Played action: {:?}\n\n", decoded_action);
-            bg.apply_move(&decoded_action);
+            state.apply_move(&decoded_action);
 
-            if let Some(winner) = Backgammon::check_win_without_player(bg.board) {
+            if let Some(winner) = state.check_winner() {
                 return memory
                     .iter()
                     .map(|mem| MemoryFragment {
@@ -82,5 +81,4 @@ impl AlphaZero {
             }
         }
     }
-
 }
