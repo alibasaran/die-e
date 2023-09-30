@@ -1,5 +1,5 @@
 
-use config::{Value, Config};
+use config::{Config};
 use indicatif::MultiProgress;
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};
@@ -17,7 +17,6 @@ use tch::{
 use super::nnet::ResNet;
 
 use crate::{
-    backgammon::backgammon_logic::{Backgammon, Actions},
     constants::{DEFAULT_TYPE, DEVICE},
     mcts::alpha_mcts::alpha_mcts, MctsConfig, base::LearnableGame,
 };

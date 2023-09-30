@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use tch::Tensor;
 
 
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub trait LearnableGame: Clone + Debug + DeserializeOwned + Serialize + Send + Sync + Copy {
 

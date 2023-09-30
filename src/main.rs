@@ -1,7 +1,6 @@
 use core::{panic};
 use std::{
-    collections::HashMap,
-    time::Duration, path::{Path, PathBuf}, fs, io, os,
+    path::{Path, PathBuf}, fs, io,
 };
 
 use config::Config;
@@ -10,7 +9,7 @@ use die_e::{
 };
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use tch::{Tensor, nn::VarStore};
+
 
 use clap::{Parser, Subcommand, ValueEnum};
 

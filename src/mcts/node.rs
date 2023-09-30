@@ -1,4 +1,4 @@
-use crate::{backgammon::backgammon_logic::{Actions, Backgammon}, base::LearnableGame};
+use crate::{base::LearnableGame};
 use rand::{seq::SliceRandom, Rng};
 use tch::Tensor;
 use std::ops::Div;
@@ -41,7 +41,7 @@ where
 
 impl <T: LearnableGame> Node<T>{
     pub fn new(
-        mut state: T,
+        state: T,
         idx: usize,
         parent: Option<usize>,
         action_taken: Option<T::Move>,
@@ -139,7 +139,7 @@ impl <T: LearnableGame> Node<T>{
     pub fn alpha_expand(&mut self, store: &mut NodeStore<T>, policy: Vec<f32>) {
         for action in self.expandable_moves.iter() {
             let encoded_value = self.state.encode(action);
-            let value = policy[encoded_value as usize];
+            let _value = policy[encoded_value as usize];
             let mut next_state = self.state.clone();
             next_state.apply_move(&action);
 
@@ -157,7 +157,7 @@ impl <T: LearnableGame> Node<T>{
     pub fn alpha_expand_tensor(&mut self, store: &mut NodeStore<T>, policy: &Tensor) {
         for action in self.expandable_moves.iter() {
             let encoded_value = self.state.encode(action);
-            let value = policy.double_value(&[encoded_value.into()]) as f32;
+            let _value = policy.double_value(&[encoded_value.into()]) as f32;
             
             let mut next_state = self.state.clone();
             next_state.apply_move(&action);

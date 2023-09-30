@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt, vec};
 use tch::Tensor;
 
-use crate::{constants::DEFAULT_TYPE, versus::Game, base::LearnableGame};
+use crate::{constants::DEFAULT_TYPE, base::LearnableGame};
 
 // (the board itself, pieces_hit, pieces_collected)
 pub type Board = ([i8; 24], (u8, u8), (u8, u8));

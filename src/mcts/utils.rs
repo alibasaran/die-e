@@ -4,7 +4,6 @@ use itertools::{multiunzip, Itertools};
 use tch::Tensor;
 
 use crate::{
-    backgammon::backgammon_logic::Backgammon,
     constants::{ACTION_SPACE_SIZE, DEVICE, DEFAULT_TYPE}, base::LearnableGame,
 };
 

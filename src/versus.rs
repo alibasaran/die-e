@@ -3,10 +3,10 @@ use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use serde::{Serialize, de::DeserializeOwned, Deserialize};
+use serde::{Serialize, Deserialize};
 use nanoid::nanoid;
 
-use crate::{backgammon::backgammon_logic::{Backgammon, Actions}, mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::{alphazero::{AlphaZero}}, MctsConfig, base::LearnableGame};
+use crate::{mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::{alphazero::{AlphaZero}}, MctsConfig, base::LearnableGame};
 
 
 /*
@@ -65,8 +65,8 @@ pub fn save_game<T: LearnableGame>(game: &Game<T>, game_path: &str) -> Result<()
 pub fn load_game<T: LearnableGame>(path: PathBuf) -> Result<Game<T>, Box<dyn std::error::Error>> {
     let file = File::open(path)?;
 
-    let mut contents = String::new();
-    let mut reader = std::io::BufReader::new(file);
+    let _contents = String::new();
+    let reader = std::io::BufReader::new(file);
     let game: Game<T> = serde_json::from_reader(reader)?;
 
     Ok(game)
@@ -82,7 +82,7 @@ pub fn print_game<T: LearnableGame>(path: PathBuf, wait_user_input: bool) -> Res
     println!("Game winner: {:?}", game.winner);
 
     println!("Initial State:");
-    let mut current_state = game.initial_state;
+    let current_state = game.initial_state;
     println!("{}", current_state.to_pretty_str());
 
     for turn in game.turns {

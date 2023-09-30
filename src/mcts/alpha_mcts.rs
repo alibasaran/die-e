@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet, time::{SystemTime, UNIX_EPOCH}};
+use std::{cmp::Ordering, collections::HashSet};
 
 
 use indicatif::{ProgressIterator, ProgressBar};
@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use tch::Tensor;
 
-use crate::{backgammon::backgammon_logic::Backgammon, alphazero::nnet::ResNet, constants::DEVICE, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MctsConfig, base::LearnableGame};
+use crate::{alphazero::nnet::ResNet, constants::DEVICE, mcts::{noise::apply_dirichlet, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs_tensor_parallel}}, MctsConfig, base::LearnableGame};
 
 use super::{node_store::NodeStore, node::Node, simple_mcts::backpropagate, utils::{turn_policy_to_probs, get_prob_tensor}};
 

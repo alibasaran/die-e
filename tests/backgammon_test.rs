@@ -1,4 +1,5 @@
 use die_e::backgammon::backgammon_logic::Backgammon;
+use die_e::base::LearnableGame;
 use std::vec;
 
 #[cfg(test)]

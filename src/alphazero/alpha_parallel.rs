@@ -4,7 +4,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 
 use crate::{
-    backgammon::backgammon_logic::Backgammon,
     base::LearnableGame,
     mcts::{
         alpha_mcts::alpha_mcts_parallel, node_store::NodeStore, utils::get_prob_tensor_parallel,

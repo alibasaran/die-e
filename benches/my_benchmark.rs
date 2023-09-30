@@ -3,6 +3,7 @@ use die_e::{
     backgammon::backgammon_logic::Backgammon,
     constants::{DEVICE},
     mcts::{node_store::NodeStore, node::Node, utils::{turn_policy_to_probs_tensor, turn_policy_to_probs}},
+    base::LearnableGame
 };
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
@@ -92,7 +93,7 @@ fn bench(c: &mut Criterion) {
             let mut state = Backgammon::default();
             state.roll_die();
             let mut store = NodeStore::new();
-            store.add_node(state, None, None, Some(state.roll), 0.);
+            store.add_node(state, None, None, 0.);
             let mut node = store.get_node(0);
             let policy = Tensor::rand(1352, (Kind::Float, Device::Cpu));
             node.alpha_expand_tensor(&mut store, &policy);
@@ -104,7 +105,7 @@ fn bench(c: &mut Criterion) {
             let mut state = Backgammon::default();
             state.roll_die();
             let mut store = NodeStore::new();
-            store.add_node(state, None, None, Some(state.roll), 0.);
+            store.add_node(state, None, None, 0.);
             let policy = (0..1352).map(|_| rng.gen_range(0..20) as f32).collect_vec();
             let mut node = store.get_node(0);
             node.alpha_expand(&mut store, policy);
