@@ -8,6 +8,7 @@ pub mod backgammon;
 pub mod mcts;
 pub mod versus;
 pub mod base;
+pub mod tictactoe;
 
 /*
 

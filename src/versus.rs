@@ -159,6 +159,7 @@ pub struct PlayResult <T: LearnableGame> {
     player2: Agent,
     wins_p1: usize,
     wins_p2: usize,
+    draws: usize,
     n_games: usize,
     winrate: f64,
     pub games: Vec<Game<T>>,
@@ -170,8 +171,9 @@ impl <T: LearnableGame> fmt::Display for PlayResult<T> {
         writeln!(f, "Player 2: {:?}", self.player2)?;
         writeln!(f, "Wins Player 1: {}", self.wins_p1)?;
         writeln!(f, "Wins Player 2: {}", self.wins_p2)?;
+        writeln!(f, "Draws: {}", self.draws);
         writeln!(f, "Number of Games: {}", self.n_games)?;
-        writeln!(f, "Winrate: {:.2}%", self.winrate)?;
+        writeln!(f, "Winrate: {}%", self.winrate * 100.)?;
         Ok(())
     }
 }
@@ -190,7 +192,7 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
     )
     .unwrap();
 
-    let num_games = 100;
+    let num_games = 400;
     let round_limit = 400;
     let mut games: HashMap<usize, (T, Game<T>)> = HashMap::from_iter((0..num_games).map(|idx| {
         let mut state = T::new();
@@ -207,6 +209,7 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
 
     let mut games_played: Vec<Game<T>> = vec![];
     let mut wins_p1 = 0.;
+    let mut wins_p2 = 0.;
     let player_p1 = -1;
 
     let pb_games =
@@ -246,7 +249,6 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
 
             // let player_type = if game_mut.get_player() == -1 {player1.player_type.clone()} else {player2.player_type.clone()};
             // curr_game.turns.push(Turn { roll: game_mut.roll, player: player_type, action: action.clone() });
-
             if action.eq(&T::EMPTY_MOVE) {
                 game_mut.skip_turn();
                 continue;
@@ -254,24 +256,25 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
             assert!(game_mut.get_valid_moves().contains(action));
 
             game_mut.apply_move(action);
-            if let Some(winner) = game_mut.check_winner() {
+            let winner = match game_mut.check_winner() {
+                Some(winner) => Some(winner),
+                None if round_count >= round_limit => {
+                    let choices: Vec<i8> = vec![-1, 1];
+                    Some(*choices.choose(&mut rand::thread_rng()).unwrap())
+                }
+                None => None
+            };
+
+            if let Some(winner) = winner {
+                games_to_remove.push(initial_idx);
                 if winner == player_p1 {
                     curr_game.winner = player1.player_type.clone();
                     wins_p1 += 1.
-                } else {
+                } else if winner == -player_p1 {
+                    wins_p2 += 1.;
                     curr_game.winner = player2.player_type.clone();
-                }
-                games_to_remove.push(initial_idx);
-            }
-            if round_count >= round_limit {
-                games_to_remove.push(initial_idx);
-                let choices = vec![-1, 1];
-                let rand_winner = choices.choose(&mut rand::thread_rng()).unwrap();
-                if *rand_winner == player_p1 {
-                    curr_game.winner = player1.player_type.clone();
-                    wins_p1 += 1.
                 } else {
-                    curr_game.winner = player2.player_type.clone();
+                    curr_game.winner = Agent::None
                 }
             }
         }
@@ -282,11 +285,13 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
     }
     let winrate = wins_p1 / num_games as f64;
     let wins_p1 = wins_p1 as usize;
+    let wins_p2 = wins_p2 as usize;
     PlayResult {
         player1: player1.player_type,
         player2: player2.player_type,
         wins_p1,
-        wins_p2: num_games - wins_p1,
+        wins_p2,
+        draws: num_games - (wins_p1 + wins_p2),
         winrate,
         n_games: num_games,
         games: games_played

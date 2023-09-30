@@ -5,7 +5,7 @@ use std::{
 
 use config::Config;
 use die_e::{
-    alphazero::alphazero::{AlphaZero, MemoryFragment}, MctsConfig, versus::{Agent, Player, play, save_game, print_game}, backgammon::backgammon_logic::Backgammon
+    alphazero::alphazero::{AlphaZero, MemoryFragment}, MctsConfig, versus::{Agent, Player, play, save_game, print_game, PlayResult}, backgammon::backgammon_logic::Backgammon, tictactoe::TicTacToe, base::LearnableGame
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
@@ -145,13 +145,17 @@ fn main() {
         .unwrap();
     println!("Number of CPU's to use {}", n_cpus);
 
-    match args.command {
+    match args.game {
+        LearnableGames::Backgammon => handle_command::<Backgammon>(args.command, &config),
+        LearnableGames::TicTacToe => handle_command::<TicTacToe>(args.command, &config)
+    }
+}
+
+fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
+    match command {
         Commands::Learn { model_path } => {
-            let mut az = AlphaZero::from_config(model_path, &config);
-            match args.game {
-                LearnableGames::TicTacToe => todo!("implement tictactoe!"),
-                LearnableGames::Backgammon => az.learn_parallel::<Backgammon>()
-            }
+            let mut az = AlphaZero::from_config(model_path, conf);
+            az.learn_parallel::<T>();
         },
         Commands::Play { agent_one, model_path_one, agent_two, model_path_two, output_path } => {
             let agent_one_type = match agent_one {
@@ -182,19 +186,15 @@ fn main() {
             assert!(output_path.exists(), "Output dir does not exist!");
 
             let alphazero_one = model_path_one
-                .map(|model_path| AlphaZero::from_config(Some(model_path), &config));
+                .map(|model_path| AlphaZero::from_config(Some(model_path), conf));
 
             let alphazero_two = model_path_two
-                .map(|model_path| AlphaZero::from_config(Some(model_path), &config));
+                .map(|model_path| AlphaZero::from_config(Some(model_path), conf));
 
             let player1 = Player{player_type: agent_one_type, model: alphazero_one};
             let player2 = Player{player_type: agent_two_type, model: alphazero_two};
 
-            let play_fn = match args.game {
-                LearnableGames::TicTacToe => todo!("implement tictactoe!"),
-                LearnableGames::Backgammon => play::<Backgammon>
-            };
-            let play_result = play_fn(player1, player2, &MctsConfig::from_config(&config).unwrap());
+            let play_result: PlayResult<T> = play::<T>(player1, player2, &MctsConfig::from_config(conf).unwrap());
             println!("{}\n Saving games...", play_result);
             for game in play_result.games {
                 save_game(&game, output_path.to_str().unwrap()).unwrap()
@@ -223,7 +223,7 @@ fn main() {
             println!("Total memory fragments: {}", &training_data.len());
             
             // Create AZ instance for training
-            let mut az = AlphaZero::from_config(model_path, &config);
+            let mut az = AlphaZero::from_config(model_path, &conf);
 
             // Train and save model
             az.train(&mut training_data);
@@ -234,16 +234,13 @@ fn main() {
             }
         },
         Commands::Replay { game_path } => {
-            let print_fn = match args.game {
-                LearnableGames::TicTacToe => todo!("implement tictactoe!"),
-                LearnableGames::Backgammon => print_game::<Backgammon>,
-            };
-            match print_fn(game_path, true) {
+            match print_game::<T>(game_path, true) {
                 Ok(_) => (),
                 Err(e) => panic!("unable to print game, {}", e),
             }
         }
     }
+
 }
 
 fn get_all_paths_rec(dir: &Path, res: &mut Vec<PathBuf>) -> io::Result<()> {
