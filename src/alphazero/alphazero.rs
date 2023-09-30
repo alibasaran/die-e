@@ -78,7 +78,7 @@ torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0
 
 
 impl AlphaZero {
-    pub fn new(model_path: Option<PathBuf>, config: AlphaZeroConfig, mcts_config: MctsConfig, op: OptimizerParams) -> Self {
+    pub fn new<T: LearnableGame>(model_path: Option<PathBuf>, config: AlphaZeroConfig, mcts_config: MctsConfig, op: OptimizerParams) -> Self {
         let mut vs = nn::VarStore::new(*DEVICE);
 
         println!("Initializing AlphaZero...\nDevice: {:?}\n{:?}\n{:?}", *DEVICE, &config, mcts_config);
@@ -101,7 +101,7 @@ impl AlphaZero {
         let opt = Adam::default().wd(op.wd).build(&vs, op.lr).unwrap();
 
         AlphaZero {
-            model: ResNet::new(vs),
+            model: ResNet::new::<T>(vs),
             optimizer: opt,
             config,
             mcts_config,
@@ -109,7 +109,7 @@ impl AlphaZero {
         }
     }
 
-    pub fn from_config(model_path: Option<PathBuf>, config: &Config) -> Self {
+    pub fn from_config<T: LearnableGame>(model_path: Option<PathBuf>, config: &Config) -> Self {
         let az_config = match AlphaZeroConfig::from_config(config){
             Ok(config) => config,
             Err(e) => panic!("Unable to load AlphaZero config, {}", e),
@@ -122,7 +122,7 @@ impl AlphaZero {
             Ok(op) => op,
             Err(e) => panic!("Unable to load optimizer params, {}", e),
         };
-        AlphaZero::new(model_path, az_config, mcts_config, op)
+        AlphaZero::new::<T>(model_path, az_config, mcts_config, op)
     }
 
     pub fn weighted_select_tensor_idx(pi: &Tensor) -> usize {

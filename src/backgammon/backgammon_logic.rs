@@ -77,6 +77,9 @@ impl LearnableGame for Backgammon {
 
     const EMPTY_MOVE: Self::Move = vec![];
     const IS_DETERMINISTIC: bool = false;
+    const ACTION_SPACE_SIZE: i64 = 1352;
+    const N_INPUT_CHANNELS: i64 = 6;
+    const CONV_OUTPUT_SIZE: i64 = 24;
 
     fn new() -> Self {
         Backgammon {

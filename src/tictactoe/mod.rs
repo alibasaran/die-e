@@ -18,6 +18,10 @@ impl LearnableGame for TicTacToe {
 
     const EMPTY_MOVE: Self::Move = 10;
 
+    const ACTION_SPACE_SIZE: i64 = 9;
+    const CONV_OUTPUT_SIZE: i64 = 9;
+    const N_INPUT_CHANNELS: i64 = 2; // board and the current player
+
     const IS_DETERMINISTIC: bool = true;
 
     fn new() -> Self {

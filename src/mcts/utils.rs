@@ -4,7 +4,7 @@ use itertools::{multiunzip, Itertools};
 use tch::Tensor;
 
 use crate::{
-    constants::{ACTION_SPACE_SIZE, DEVICE, DEFAULT_TYPE}, base::LearnableGame,
+    constants::{DEVICE, DEFAULT_TYPE}, base::LearnableGame,
 };
 
 use super::{node::Node, node_store::NodeStore};
@@ -18,7 +18,7 @@ pub fn get_prob_tensor<T: LearnableGame>(
     if children.is_empty() {
         return None;
     }
-    let result = Tensor::full(ACTION_SPACE_SIZE, 0, (DEFAULT_TYPE, *DEVICE));
+    let result = Tensor::full(T::ACTION_SPACE_SIZE, 0, (DEFAULT_TYPE, *DEVICE));
     let mut idxs: Vec<i64> = vec![];
     let mut visits: Vec<f32> = vec![];
     for child in children {
@@ -40,7 +40,7 @@ pub fn get_prob_tensor<T: LearnableGame>(
  * where tensor of size 1352 contains mostly zeros with values on only the encoded values of the node's expandable moves
  */
 pub fn get_prob_tensor_parallel<T: LearnableGame>(nodes: &[&Node<T>]) -> Tensor {
-    let mut result = Tensor::zeros([nodes.len() as i64, ACTION_SPACE_SIZE], (DEFAULT_TYPE, *DEVICE));
+    let mut result = Tensor::zeros([nodes.len() as i64, T::ACTION_SPACE_SIZE], (DEFAULT_TYPE, *DEVICE));
     let (xs, ys, vals): (Vec<i32>, Vec<i32>, Vec<f32>) = multiunzip(nodes.iter().enumerate().flat_map(|(processed_idx, &node)| {
         node.expandable_moves.iter().map(move |actions| {
             // Idx of tensor N_i, the expandable move encoded, the value

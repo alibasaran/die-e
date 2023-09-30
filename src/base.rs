@@ -11,6 +11,13 @@ pub trait LearnableGame: Clone + Debug + DeserializeOwned + Serialize + Send + S
     const EMPTY_MOVE: Self::Move;
     const IS_DETERMINISTIC: bool;
 
+    // Parameters used when creating and running models
+    // Number of unique encodings in a game
+    // Ex. TicTacToe is 9 as there are 9 different moves you can make
+    const ACTION_SPACE_SIZE: i64;
+    const N_INPUT_CHANNELS: i64;
+    const CONV_OUTPUT_SIZE: i64; // The board size in backgammon there are 24 squares so 24
+
     fn new() -> Self;
 
     fn get_valid_moves(&self) -> Vec<Self::Move>;

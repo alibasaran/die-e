@@ -22,7 +22,7 @@ impl AlphaZero {
     /**
      * Plays against the current best model, saves if 55% better
      */
-    pub fn play_vs_best_model(&self) {
+    pub fn play_vs_best_model<T: LearnableGame>(&self) {
         let mut vs_best_model = VarStore::new(*DEVICE);
         let best_model_path = "./models/best_model.ot";
         match vs_best_model.load(Path::new(best_model_path)) {
@@ -50,7 +50,7 @@ impl AlphaZero {
         }
         // Create vs copy because we move the vs into the ResNet
         let is_model_better = match self
-            .model_vs_model_parallel(&self.model, &ResNet::new(vs_best_model))
+            .model_vs_model_parallel(&self.model, &ResNet::new::<T>(vs_best_model))
         {
             Some(1) => {
                 self.pb.println("new model was better!").unwrap();

@@ -91,7 +91,7 @@ impl AlphaZero {
                     &model_save_path, e
                 ),
             }
-            self.play_vs_best_model();
+            self.play_vs_best_model::<T>();
             pb_learn.inc(1);
         }
     }

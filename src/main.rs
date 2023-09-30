@@ -154,7 +154,7 @@ fn main() {
 fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
     match command {
         Commands::Learn { model_path } => {
-            let mut az = AlphaZero::from_config(model_path, conf);
+            let mut az = AlphaZero::from_config::<T>(model_path, conf);
             az.learn_parallel::<T>();
         },
         Commands::Play { agent_one, model_path_one, agent_two, model_path_two, output_path } => {
@@ -186,10 +186,10 @@ fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
             assert!(output_path.exists(), "Output dir does not exist!");
 
             let alphazero_one = model_path_one
-                .map(|model_path| AlphaZero::from_config(Some(model_path), conf));
+                .map(|model_path| AlphaZero::from_config::<T>(Some(model_path), conf));
 
             let alphazero_two = model_path_two
-                .map(|model_path| AlphaZero::from_config(Some(model_path), conf));
+                .map(|model_path| AlphaZero::from_config::<T>(Some(model_path), conf));
 
             let player1 = Player{player_type: agent_one_type, model: alphazero_one};
             let player2 = Player{player_type: agent_two_type, model: alphazero_two};
@@ -223,7 +223,7 @@ fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
             println!("Total memory fragments: {}", &training_data.len());
             
             // Create AZ instance for training
-            let mut az = AlphaZero::from_config(model_path, &conf);
+            let mut az = AlphaZero::from_config::<T>(model_path, conf);
 
             // Train and save model
             az.train(&mut training_data);

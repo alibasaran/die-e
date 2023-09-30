@@ -171,7 +171,7 @@ impl <T: LearnableGame> fmt::Display for PlayResult<T> {
         writeln!(f, "Player 2: {:?}", self.player2)?;
         writeln!(f, "Wins Player 1: {}", self.wins_p1)?;
         writeln!(f, "Wins Player 2: {}", self.wins_p2)?;
-        writeln!(f, "Draws: {}", self.draws);
+        writeln!(f, "Draws: {}", self.draws)?;
         writeln!(f, "Number of Games: {}", self.n_games)?;
         writeln!(f, "Winrate: {}%", self.winrate * 100.)?;
         Ok(())

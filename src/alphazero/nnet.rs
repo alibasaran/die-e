@@ -5,7 +5,7 @@ use tch::{
     Device, Tensor,
 };
 
-use crate::constants::DEVICE;
+use crate::{constants::DEVICE, base::LearnableGame};
 
 /*
 Constants
@@ -57,18 +57,9 @@ pub struct ResNet {
     value_head: nn::SequentialT,
 }
 
-const INPUT_SIZE: i64 = 6; // arbitrary
-const POLICY_OUTPUT_SIZE: i64 = 1352; // arbitrary
-
-impl Default for ResNet {
-    fn default() -> Self {
-        let vs = nn::VarStore::new(*DEVICE);
-        ResNet::new(vs)
-    }
-}
 
 impl ResNet {
-    pub fn new(vs: VarStore) -> Self {
+    pub fn new<T: LearnableGame>(vs: VarStore) -> Self {
         let conv_config = nn::ConvConfig {
             padding: 1,
             ..Default::default()
@@ -76,7 +67,7 @@ impl ResNet {
         let root = vs.root();
 
         let init_block = nn::seq_t()
-            .add(nn::conv2d(&root, INPUT_SIZE, FILTERS, 3, conv_config))
+            .add(nn::conv2d(&root, T::N_INPUT_CHANNELS, FILTERS, 3, conv_config))
             .add(nn::batch_norm2d(&root, FILTERS, Default::default()))
             .add_fn(Tensor::relu);
 
@@ -93,8 +84,8 @@ impl ResNet {
             .add_fn(|x| x.flatten(1, -1))
             .add(nn::linear(
                 &root,
-                2 * CONV_OUTPUT_SIZE, /* conv output size */
-                POLICY_OUTPUT_SIZE,
+                2 * T::CONV_OUTPUT_SIZE, /* conv output size */
+                T::ACTION_SPACE_SIZE,
                 Default::default(),
             ));
 
@@ -105,7 +96,7 @@ impl ResNet {
             .add_fn(|x| x.flatten(1, -1))
             .add(nn::linear(
                 root,
-                CONV_OUTPUT_SIZE, /* conv output size */
+                T::CONV_OUTPUT_SIZE, /* conv output size */
                 1,
                 Default::default(),
             ))
@@ -118,11 +109,6 @@ impl ResNet {
             policy_head,
             value_head,
         }
-    }
-
-    pub fn with_device(device: Device) -> Self {
-        let vs = VarStore::new(device);
-        ResNet::new(vs)
     }
     
     pub fn forward_t(&self, xs: &Tensor, train: bool) -> (Tensor, Tensor) {

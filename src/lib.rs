@@ -16,9 +16,6 @@ Constants used through all modules
 */
 pub mod constants {
     use tch::Device;
-    
-    // Keep action space size here, since currently only backgammon is implemented
-    pub const ACTION_SPACE_SIZE: i64 = 1352;
 
     pub const DEFAULT_TYPE: tch::kind::Kind = tch::Kind::Float;
 
