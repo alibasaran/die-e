@@ -2,7 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::{base::LearnableGame};
+use crate::base::LearnableGame;
 
 use super::node::Node;
 
@@ -13,6 +13,12 @@ pub struct NodeStore<T: LearnableGame> {
 impl <T: LearnableGame> fmt::Display for NodeStore<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "NodeStore<size={}>", self.nodes.len())
+    }
+}
+
+impl <T: LearnableGame> Default for NodeStore<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

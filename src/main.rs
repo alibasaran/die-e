@@ -1,4 +1,4 @@
-use core::{panic};
+use core::panic;
 use std::{
     path::{Path, PathBuf}, fs, io,
 };
@@ -7,7 +7,6 @@ use config::Config;
 use die_e::{
     alphazero::alphazero::{AlphaZero, MemoryFragment}, MctsConfig, versus::{Agent, Player, play, save_game, print_game}, backgammon::backgammon_logic::Backgammon
 };
-use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 

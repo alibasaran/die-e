@@ -1,4 +1,4 @@
-use crate::{base::LearnableGame};
+use crate::base::LearnableGame;
 use rand::{seq::SliceRandom, Rng};
 use tch::Tensor;
 use std::ops::Div;
@@ -26,9 +26,9 @@ where
 {
     fn clone(&self) -> Self {
         Node {
-            state: self.state.clone(),
+            state: self.state,
             idx: self.idx,
-            parent: self.parent.clone(),
+            parent: self.parent,
             children: self.children.clone(),
             visits: self.visits,
             value: self.value,
@@ -121,7 +121,7 @@ impl <T: LearnableGame> Node<T>{
         let move_idx = rand::thread_rng().gen_range(0..self.expandable_moves.len());
 
         let action_taken = self.expandable_moves.remove(move_idx);
-        let mut next_state = self.state.clone();
+        let mut next_state = self.state;
         next_state.apply_move(&action_taken);
 
         let child_idx = store.add_node(
@@ -140,8 +140,8 @@ impl <T: LearnableGame> Node<T>{
         for action in self.expandable_moves.iter() {
             let encoded_value = self.state.encode(action);
             let _value = policy[encoded_value as usize];
-            let mut next_state = self.state.clone();
-            next_state.apply_move(&action);
+            let mut next_state = self.state;
+            next_state.apply_move(action);
 
             let child_idx = store.add_node(
                 next_state,
@@ -159,8 +159,8 @@ impl <T: LearnableGame> Node<T>{
             let encoded_value = self.state.encode(action);
             let _value = policy.double_value(&[encoded_value.into()]) as f32;
             
-            let mut next_state = self.state.clone();
-            next_state.apply_move(&action);
+            let mut next_state = self.state;
+            next_state.apply_move(action);
 
             let child_idx = store.add_node(
                 next_state,

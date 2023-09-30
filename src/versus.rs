@@ -1,4 +1,4 @@
-use std::{path::{Path, PathBuf}, fs::{File, self}, io::{Read, Write}, time::Duration, collections::HashMap, fmt};
+use std::{path::{Path, PathBuf}, fs::{File, self}, io::Write, time::Duration, collections::HashMap, fmt};
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
@@ -6,7 +6,7 @@ use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Serialize, Deserialize};
 use nanoid::nanoid;
 
-use crate::{mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::{alphazero::{AlphaZero}}, MctsConfig, base::LearnableGame};
+use crate::{mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::alphazero::AlphaZero, MctsConfig, base::LearnableGame};
 
 
 /*
