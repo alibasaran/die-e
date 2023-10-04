@@ -88,8 +88,9 @@ impl AlphaZero {
                 Ok(_) => println!("Successfully loaded model on path: {}", m_path.to_str().unwrap()),
                 Err(e) => panic!("failed to load model: (might be a large error log) \n{}", e),
             },
-            None if Path::new("./models/best_model.ot").exists() => {
-                let bm_path = Path::new("./models/best_model.ot");
+            None if Path::new(&format!("./models/{}/best_model.ot", T::name())).exists() => {
+                let m_path_str = format!("./models/{}/best_model.ot", T::name());
+                let bm_path = Path::new(&m_path_str);
                 match vs.load(bm_path) {
                     Ok(_) => println!("Successfully loaded best model"),
                     Err(e) => panic!("failed to load best model: {}", e),
@@ -193,7 +194,7 @@ impl AlphaZero {
             MemoryFragment {
                 outcome: outcomes.get(data_idx).int64_value(&[]) as i8,
                 ps: ps.get(data_idx).squeeze().shallow_clone(),
-                state: states.get(data_idx).unsqueeze(2).shallow_clone(),
+                state: states.get(data_idx).shallow_clone(),
             }
         }).collect_vec()
     }
@@ -213,29 +214,30 @@ impl AlphaZero {
                 }));
 
             // Format tensors to process
+            // Set non-blocking to false, if true tensors are loaded incorrectly from slice, set others to true just to be safe
             let outcome_tensor = Tensor::from_slice(&outcomes).unsqueeze(1).to_device_(
                 *DEVICE,
                 DEFAULT_TYPE,
-                true,
+                false,
                 false,
             );
 
             let ps_tensor = Tensor::stack(&ps_values, 0).to_device_(
                 *DEVICE,
                 DEFAULT_TYPE,
-                true,
+                false,
                 false,
             );
 
-            let state_tensor = Tensor::stack(&states, 0).squeeze().to_device_(
+            
+            let state_tensor = Tensor::stack(&states, 0).squeeze_dim(1).to_device_(
                 *DEVICE,
                 DEFAULT_TYPE,
-                true,
+                false,
                 false,
             );
-
-            let (out_policy, out_value) = self.model.forward_t(&state_tensor, true);
-            let out_policy = out_policy.squeeze();
+            
+            let (out_policy, out_value) = self.model.forward_train(&state_tensor, true);
 
             // Calculate loss
             let policy_loss = out_policy.cross_entropy_loss::<Tensor>(
@@ -246,7 +248,21 @@ impl AlphaZero {
                 0.0,
             );
             let outcome_loss = out_value.mse_loss(&outcome_tensor, tch::Reduction::Mean);
+            assert!(!outcome_tensor.isnan().sum(None).is_nonzero() && !outcome_tensor.isinf().sum(None).is_nonzero(), "Outcome is nan or inf!");
+            assert!(!policy_loss.isnan().sum(None).is_nonzero() && !policy_loss.isinf().sum(None).is_nonzero(), "Policy is nan or inf!");
+            // outcome_tensor.print();
+            // if outcome_loss.isnan().is_nonzero() || outcome_loss.isinf().is_nonzero() {
+            //     println!("Outcome loss");
+            //     outcome_loss.print();
+            //     println!("Outcomes: {:?}", outcomes);
+            //     println!("Here");
+            // }
+            // outcome_loss.print();
             let loss = policy_loss + outcome_loss;
+            // loss.print();
+            assert!(!loss.isnan().sum(None).is_nonzero() && !loss.isinf().sum(None).is_nonzero(), "Total loss is nan or inf!");
+
+            // loss.print();
 
             self.optimizer.zero_grad();
             loss.backward();

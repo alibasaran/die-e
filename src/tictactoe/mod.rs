@@ -1,7 +1,9 @@
+mod tictactoe_test;
+
 use itertools::Itertools;
 use serde::{Serialize, Deserialize};
 
-use crate::base::LearnableGame;
+use crate::{base::LearnableGame, constants::DEFAULT_TYPE};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub struct TicTacToe {
@@ -9,7 +11,7 @@ pub struct TicTacToe {
     // 0 | 1 | 2 
     // 3 | 4 | 5
     // 6 | 7 | 8
-    board: [i8; 9],
+    pub board: [i8; 9],
     id: usize
 }
 
@@ -20,12 +22,18 @@ impl LearnableGame for TicTacToe {
 
     const ACTION_SPACE_SIZE: i64 = 9;
     const CONV_OUTPUT_SIZE: i64 = 9;
-    const N_INPUT_CHANNELS: i64 = 2; // board and the current player
+    const N_INPUT_CHANNELS: i64 = 3;
+    const N_FILTERS: i64 = 64;
+    const N_RES_BLOCKS: i64 = 4;
 
     const IS_DETERMINISTIC: bool = true;
 
     fn new() -> Self {
         TicTacToe { player: -1, board: [0; 9], id: 0 }
+    }
+
+    fn name() -> String {
+        String::from("tictactoe")
     }
 
     fn get_valid_moves(&self) -> Vec<Self::Move> {
@@ -74,7 +82,16 @@ impl LearnableGame for TicTacToe {
     }
 
     fn as_tensor(&self) -> tch::Tensor {
-        todo!()
+        let board_tensor = tch::Tensor::from_slice(&self.board)
+            .view([3, 3]);
+        tch::Tensor::stack(
+            &[
+                board_tensor.eq(-1),
+                board_tensor.eq(0),
+                board_tensor.eq(1),
+            ], 0
+        ).unsqueeze(0)
+        .to_dtype(DEFAULT_TYPE, true, false)
     }
 
     fn decode(&self, action: u32) -> Self::Move {

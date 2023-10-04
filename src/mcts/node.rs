@@ -137,17 +137,17 @@ impl <T: LearnableGame> Node<T>{
     }
 
     pub fn alpha_expand(&mut self, store: &mut NodeStore<T>, policy: Vec<f32>) {
-        for action in self.expandable_moves.iter() {
-            let encoded_value = self.state.encode(action);
-            let _value = policy[encoded_value as usize];
+        for action in self.expandable_moves.drain(..) {
+            let encoded_value = self.state.encode(&action);
+            let value = policy[encoded_value as usize];
             let mut next_state = self.state;
-            next_state.apply_move(action);
+            next_state.apply_move(&action);
 
             let child_idx = store.add_node(
                 next_state,
                 Some(self.idx),
                 Some(action.clone()),
-                0.0,
+                value,
             );
             self.children.push(child_idx);
         }
@@ -155,20 +155,19 @@ impl <T: LearnableGame> Node<T>{
     }
 
     pub fn alpha_expand_tensor(&mut self, store: &mut NodeStore<T>, policy: &Tensor) {
-        for action in self.expandable_moves.iter() {
-            let encoded_value = self.state.encode(action);
-            let _value = policy.double_value(&[encoded_value.into()]) as f32;
+        for action in self.expandable_moves.drain(..) {
+            let encoded_value = self.state.encode(&action);
+            let value = policy.double_value(&[encoded_value.into()]) as f32;
             
             let mut next_state = self.state;
-            next_state.apply_move(action);
+            next_state.apply_move(&action);
 
             let child_idx = store.add_node(
                 next_state,
                 Some(self.idx),
                 Some(action.clone()),
-                0.0,
+                value,
             );
-            self.children.push(child_idx);
             self.children.push(child_idx);
         }
         store.set_node(self);

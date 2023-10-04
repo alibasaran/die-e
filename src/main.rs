@@ -5,12 +5,13 @@ use std::{
 
 use config::Config;
 use die_e::{
-    alphazero::alphazero::{AlphaZero, MemoryFragment}, MctsConfig, versus::{Agent, Player, play, save_game, print_game, PlayResult}, backgammon::backgammon_logic::Backgammon, tictactoe::TicTacToe, base::LearnableGame
+    alphazero::{alphazero::{AlphaZero, MemoryFragment}, nnet::ResNet}, MctsConfig, versus::{Agent, Player, play, save_game, print_game, PlayResult}, backgammon::backgammon_logic::Backgammon, tictactoe::TicTacToe, base::LearnableGame, constants::DEVICE
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 
 use clap::{Parser, Subcommand, ValueEnum};
+use tch::nn::VarStore;
 
 #[derive(Parser)]
 struct Args {
@@ -84,42 +85,38 @@ enum LearnableGames {
 
 fn main() {
     // let kill = true;
-
-    // let builder = Config::builder()
-    //     .add_source(config::File::new("./config", config::FileFormat::Toml));
-
-    // let config = match builder.build() {
-    //     Ok(config) => config,
-    //     Err(e) => panic!("Unable to build config, caught error {}", e),
-    // };
-
-    // let az = AlphaZero::from_config(Some(PathBuf::from("./models/10_ep_model.ot")), &config);
-
-    // let mut state = Backgammon::init_with_fields((
-    //     [
-    //         2, 0, 0, 0, 0, -5, 0, -3, 0, 0, 0, 5, -5, 0, 0, 0, 3, 0, 3, 1, 1, 0, 0, -2,
-    //     ],
-    //     (0,0), (0, 0)), -1, false
-    // );
-
-    // state.roll = (4, 3);
-    // println!("Valid moves {:?}", state.get_valid_moves_len_always_2());
-    // println!("{}", state.to_pretty_str());
-    // let nx = az.get_next_move_for_state(&state);
-    // println!("Next move: {:?}", nx);
-    // state.apply_move(&nx);
-    // println!("{}", state.to_pretty_str());
+    // let nnet1 = ResNet::from_path::<TicTacToe>(&PathBuf::from("./models/tictactoe/best_model.ot"));
+    // let nnet2 = ResNet::from_path::<TicTacToe>(&PathBuf::from("./models/tictactoe/model_15.ot"));
+    // let nnet2_vars = nnet2.vs.variables();
+    // println!("All var names: {:?}", nnet2_vars.keys());
+    // for (k, t) in nnet1.vs.variables().iter() {
+    //     let nnet_var = nnet2_vars.get(k).unwrap();
+    //     nnet_var.print();
+    //     assert!(!t.isnan().sum(tch::Kind::Float).is_nonzero(), "Best model panic {}", k);
+    //     assert!(!nnet_var.isnan().sum(tch::Kind::Float).is_nonzero(), "Model 1 panic {}", k);
+    //     // println!("{}", t.equal(nnet_var));
+    //     // if  {
+    //     //     println!("Two tensors are equal, tensor name: {}", k);
+    //     // }
+    // }
+    // let mut ttt = TicTacToe::new();
+    // ttt.skip_turn(); // player 1
+    // ttt.board = [
+    //     -1, 0, 0,
+    //     1, 1, 0, 
+    //     -1, 0, 0
+    // ];
+    // for (k, t) in nnet1.vs.variables().iter() {
+    //     t.print()
+    // }
+    // let policy = nnet1.forward_policy(&ttt.as_tensor().to_device(*DEVICE), false);
+    // policy.print();
     // if kill {
     //     return;
     // }
 
     let args = Args::parse();
 
-    // let selected_game: Box<dyn LearnableGame> = match args.game.to_ascii_lowercase().as_str() {
-    //     "backgammon" => Backgammon,
-    //     "tictactoe" => unimplemented!(), 
-    //     _ => panic!("specified game is not supported!"), 
-    // }
     // Load config
     let config_path = args.config.unwrap_or(
         PathBuf::from("./config")
@@ -160,7 +157,7 @@ fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
         Commands::Play { agent_one, model_path_one, agent_two, model_path_two, output_path } => {
             let agent_one_type = match agent_one {
                 Some(agent) => match agent.to_ascii_lowercase().as_str() {
-                    "model" => {Agent::Model},
+                    "model" => Agent::Model,
                     "mcts" => Agent::Mcts,
                     "random" => Agent::Random,
                     _ => panic!("Incorrect specification for agent one's type.")
@@ -182,19 +179,23 @@ fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
                 Some(output) => output,
                 None => panic!("No output path given.")
             };
-            assert!(output_path.is_dir(), "Output path is not a directory.");
-            assert!(output_path.exists(), "Output dir does not exist!");
+            assert!(output_path.is_dir(), "Output path is not a directory or does not exist!");
 
-            let alphazero_one = model_path_one
-                .map(|model_path| AlphaZero::from_config::<T>(Some(model_path), conf));
+            let model_one = model_path_one
+                .map(|model_path| ResNet::from_path::<T>(&model_path));
 
-            let alphazero_two = model_path_two
-                .map(|model_path| AlphaZero::from_config::<T>(Some(model_path), conf));
+            let model_two = model_path_two
+                .map(|model_path| ResNet::from_path::<T>(&model_path));
 
-            let player1 = Player{player_type: agent_one_type, model: alphazero_one};
-            let player2 = Player{player_type: agent_two_type, model: alphazero_two};
+            let player1 = Player{player_type: agent_one_type, model: model_one};
+            let player2 = Player{player_type: agent_two_type, model: model_two};
 
-            let play_result: PlayResult<T> = play::<T>(player1, player2, &MctsConfig::from_config(conf).unwrap());
+            let temp = match conf.get_float("temperature") {
+                Ok(temperature) => temperature,
+                Err(e) => panic!("unable to load temperature value, check config.toml!, error: {}", e),
+            };
+
+            let play_result: PlayResult<T> = play::<T>(player1, player2, &MctsConfig::from_config(conf).unwrap(), temp);
             println!("{}\n Saving games...", play_result);
             for game in play_result.games {
                 save_game(&game, output_path.to_str().unwrap()).unwrap()
@@ -203,17 +204,19 @@ fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
         Commands::Train { model_path, out_path,  run_id, learn, self_play } => {
             println!("Starting training process");
             // Load training data
+            let base_path_str = format!("./data/{}", T::name());
             let data_path = match (run_id, learn, self_play) {
-                (None, None, None) => String::from("./data"),
-                (Some(id), None, None) => format!("./data/run-{}", id),
-                (Some(id), Some(learn_id), None) => format!("./data/run-{}/lrn-{}", id, learn_id),
-                (Some(id), Some(learn_id), Some(sp_id)) => format!("./data/run-{}/lrn-{}/sp-{}", id, learn_id, sp_id),
+                (None, None, None) => base_path_str,
+                (Some(id), None, None) => format!("{}/run-{}", base_path_str, id),
+                (Some(id), Some(learn_id), None) => format!("{}/run-{}/lrn-{}", base_path_str, id, learn_id),
+                (Some(id), Some(learn_id), Some(sp_id)) => format!("{}/run-{}/lrn-{}/sp-{}", base_path_str, id, learn_id, sp_id),
                 _ => panic!("the request for the training data is incorrect, run die-e learn --help for more info")
             };
             let data_path = Path::new(&data_path);
             if !data_path.exists() {
                 panic!("[TRAIN] the specified path {} does not exist!", data_path.to_str().unwrap());
             }
+            println!("Loading all data under {}", data_path.to_str().unwrap());
             let mut paths_to_load = vec![];
             let _ = get_all_paths_rec(data_path, &mut paths_to_load);
             let mut training_data: Vec<MemoryFragment> = paths_to_load.par_iter().flat_map(|p| 
@@ -227,7 +230,8 @@ fn handle_command<T: LearnableGame>(command: Commands, conf: &Config) {
 
             // Train and save model
             az.train(&mut training_data);
-            let final_out_path = out_path.unwrap_or(Path::new("./models/trained_model.ot").to_path_buf());
+            let model_path_str = format!("./models/{}/trained_model.ot", T::name());
+            let final_out_path = out_path.unwrap_or(Path::new(&model_path_str).to_path_buf());
             match az.model.vs.save(&final_out_path) {
                 Ok(_) => println!("Trained model saved successfully, saved to {}", final_out_path.to_str().unwrap()),
                 Err(e) => panic!("unable to save trained model {}", e),

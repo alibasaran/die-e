@@ -1,18 +1,18 @@
 
 # parameters used in AlphaZero processes
-temperature = 1.0
+temperature = 1.25
 learn_iterations = 100
-num_epochs = 6
+num_epochs = 10
 training_batch_size = 2048 
-self_play_iterations = 4
-num_self_play_batches = 512 # how many games will be played in parellel in self play
+self_play_iterations = 8
+num_self_play_batches = 2048 # how many games will be played in parellel in self play
 
 # parameters used in MCTS
-iterations = 1600
-exploration_const = 1.0
+iterations = 600
+exploration_const = 2.0
 simulate_round_limit = 400 # 200 per player => 200 rounds/turns
 # https://jonathan-laurent.github.io/AlphaZero.jl/stable/reference/params/#AlphaZero.MctsParams
-dirichlet_alpha = 0.02
+dirichlet_alpha = 0.03
 dirichlet_epsilon = 0.25
 
 # parameters used in optimizer

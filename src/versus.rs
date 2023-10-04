@@ -6,7 +6,7 @@ use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Serialize, Deserialize};
 use nanoid::nanoid;
 
-use crate::{mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::alphazero::AlphaZero, MctsConfig, base::LearnableGame};
+use crate::{mcts::{simple_mcts::mct_search, utils::get_prob_tensor_parallel, alpha_mcts::alpha_mcts_parallel, node_store::NodeStore}, alphazero::{alphazero::AlphaZero, nnet::ResNet}, MctsConfig, base::LearnableGame};
 
 
 /*
@@ -150,18 +150,18 @@ pub fn load_all_games<T: LearnableGame>(path: PathBuf) -> Result<Vec<Game<T>>, B
 
 pub struct Player {
     pub player_type: Agent,
-    pub model: Option<AlphaZero>,
+    pub model: Option<ResNet>,
 }
 
 #[derive(Debug)]
 pub struct PlayResult <T: LearnableGame> {
-    player1: Agent,
-    player2: Agent,
-    wins_p1: usize,
-    wins_p2: usize,
-    draws: usize,
-    n_games: usize,
-    winrate: f64,
+    pub player1: Agent,
+    pub player2: Agent,
+    pub wins_p1: usize,
+    pub wins_p2: usize,
+    pub draws: usize,
+    pub n_games: usize,
+    pub winrate: f64, // from p1 perspective
     pub games: Vec<Game<T>>,
 }
 
@@ -179,12 +179,12 @@ impl <T: LearnableGame> fmt::Display for PlayResult<T> {
 }
 
 impl Player {
-    pub fn new(player_type: Agent, model: Option<AlphaZero>) -> Self {
+    pub fn new(player_type: Agent, model: Option<ResNet>) -> Self {
         Player { player_type, model}
     }
 }
 
-pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &MctsConfig) -> PlayResult<T> {
+pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &MctsConfig, temp: f64) -> PlayResult<T> {
     println!("\nStarting play!");
     let pb_play = MultiProgress::new();
     let sty = ProgressStyle::with_template(
@@ -230,9 +230,9 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
         );
         actions_pb.enable_steady_tick(Duration::from_millis(200));
         actions_pb.set_message(format!("Calculating actions for player1: {:?}", player1.player_type));
-        let actions_p1 = get_actions_for_player(&player1, &games_p1, mcts_config);
+        let actions_p1 = get_actions_for_player(&player1, &games_p1, mcts_config, temp);
         actions_pb.set_message(format!("Calculating actions for player2: {:?}", player2.player_type));
-        let actions_p2 = get_actions_for_player(&player2, &games_p2, mcts_config);
+        let actions_p2 = get_actions_for_player(&player2, &games_p2, mcts_config, temp);
         actions_pb.set_message("playing moves...");
 
         let actions_and_games = actions_p1
@@ -258,10 +258,7 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
             game_mut.apply_move(action);
             let winner = match game_mut.check_winner() {
                 Some(winner) => Some(winner),
-                None if round_count >= round_limit => {
-                    let choices: Vec<i8> = vec![-1, 1];
-                    Some(*choices.choose(&mut rand::thread_rng()).unwrap())
-                }
+                None if round_count >= round_limit => Some(0),
                 None => None
             };
 
@@ -298,19 +295,19 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
     }
 }
 
-fn get_actions_for_player<T: LearnableGame>(player: &Player, games: &[T], mcts_config: &MctsConfig) -> Vec<T::Move> {
+fn get_actions_for_player<T: LearnableGame>(player: &Player, games: &[T], mcts_config: &MctsConfig, temp: f64) -> Vec<T::Move> {
     if games.is_empty() {
         return vec![];
     }
 
     match player.player_type {
         Agent::Model => {
-            let az = player.model.as_ref().unwrap();
+            let model = player.model.as_ref().unwrap();
             let mut store = NodeStore::new();
-            alpha_mcts_parallel(&mut store, games, &az.model, mcts_config, Some(ProgressBar::hidden()));
+            alpha_mcts_parallel(&mut store, games, model, mcts_config, Some(ProgressBar::hidden()));
             let roots = store.get_root_nodes();
-            let prob_tensor = get_prob_tensor_parallel(&roots)
-                .pow_(1.0 / az.config.temperature)
+            let prob_tensor = get_prob_tensor_parallel(&roots, &store)
+                .pow_(1.0 / temp)
                 .to_device(tch::Device::Cpu);
 
             roots

@@ -15,7 +15,7 @@ impl AlphaZero {
             for _ in 0..self.config.num_epochs {
                 self.train(&mut memory);
             }
-            let model_save_path = format!("./models/model_{}.ot", i);
+            let model_save_path = format!("./models/{}/model_{}.ot", T::name(), i);
             match self.model.vs.save(&model_save_path) {
                 Ok(_) => println!(
                     "Iteration {} saved successfully, path: {}",

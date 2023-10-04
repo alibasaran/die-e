@@ -35,10 +35,8 @@ fn select_alpha<T: LearnableGame>(node_idx: usize, store: &NodeStore<T>, c: f32)
 pub fn apply_dirichlet_to_root<T: LearnableGame>(root_idx: usize, store: &mut NodeStore<T>, net: &ResNet, state: &impl LearnableGame, mcts_config: &MctsConfig) {
     let mut root_node = store.get_node(root_idx);
     
-    let (mut policy, _) = net.forward_t(&state.as_tensor().to_device(*DEVICE), false);
+    let policy = net.forward_policy(&state.as_tensor().to_device(*DEVICE), false);
 
-    policy = policy.softmax(1, None)
-        .permute([1, 0]);
     let policy_vec = turn_policy_to_probs(&policy, &root_node);
     root_node.alpha_expand(store, policy_vec);
     if root_node.children.len() < 2 {
@@ -71,19 +69,15 @@ pub fn alpha_mcts<T: LearnableGame>(state: &T, net: &ResNet, mcts_config: &MctsC
         let idx = alpha_select_leaf_node(root_node_idx, &store, mcts_config.c);
         let mut selected_node = store.get_node(idx);
 
-        let value: f32;
+        let value = if !selected_node.is_terminal() {
+            let (policy, eval) = net.forward_t(&selected_node.state.as_tensor().to_device(*DEVICE), false);
 
-        if !selected_node.is_terminal() {
-            let (mut policy, eval) = net.forward_t(&selected_node.state.as_tensor().to_device(*DEVICE), false);
-
-            policy = policy.softmax(1, None)
-                .permute([1, 0]);
             let policy_vec = turn_policy_to_probs(&policy, &selected_node);
             selected_node.alpha_expand(&mut store, policy_vec);
-            value = eval.double_value(&[0]) as f32;
+            eval.double_value(&[0]) as f32
         } else {
-            value = ((state.check_winner().unwrap() + 1) / 2) as f32;
-        }
+            ((state.check_winner().unwrap() + 1) / 2) as f32
+        };
 
         backpropagate(idx, value, &mut store);
     }
@@ -120,7 +114,7 @@ pub fn alpha_mcts_parallel<T: LearnableGame>(store: &mut NodeStore<T>, states: &
     // Expand root node for each game state
     // Move policy to CPU because alpha expand makes multiple double_value(idx) calls,
     // Takes too long when tensors are in GPU
-    let prob_tensor = turn_policy_to_probs_tensor_parallel(store, (0..states.len()).collect_vec(), &policy_dir)
+    let prob_tensor = turn_policy_to_probs_tensor_parallel(store, &(0..states.len()).collect_vec(), &policy_dir)
         .to_device(tch::Device::Cpu);
     for i in 0..states.len() {
         // Create root node for each game state

@@ -39,12 +39,13 @@ pub fn get_prob_tensor<T: LearnableGame>(
  * returns a tensor of action pick probabilities N 1352
  * where tensor of size 1352 contains mostly zeros with values on only the encoded values of the node's expandable moves
  */
-pub fn get_prob_tensor_parallel<T: LearnableGame>(nodes: &[&Node<T>]) -> Tensor {
+pub fn get_prob_tensor_parallel<T: LearnableGame>(nodes: &[&Node<T>], store: &NodeStore<T>) -> Tensor {
     let mut result = Tensor::zeros([nodes.len() as i64, T::ACTION_SPACE_SIZE], (DEFAULT_TYPE, *DEVICE));
     let (xs, ys, vals): (Vec<i32>, Vec<i32>, Vec<f32>) = multiunzip(nodes.iter().enumerate().flat_map(|(processed_idx, &node)| {
-        node.expandable_moves.iter().map(move |actions| {
+        node.children.iter().map(move |&child_idx| {
+            let child_node = store.get_node(child_idx);
             // Idx of tensor N_i, the expandable move encoded, the value
-            (processed_idx as i32, node.state.encode(actions) as i32, node.visits)
+            (processed_idx as i32, node.state.encode(&child_node.action_taken.unwrap()) as i32, child_node.visits)
         })
     }));
     let xs_tensor = Tensor::from_slice(&xs);
@@ -52,11 +53,11 @@ pub fn get_prob_tensor_parallel<T: LearnableGame>(nodes: &[&Node<T>]) -> Tensor 
     let vals_tensor = Tensor::from_slice(&vals).to_device(*DEVICE);
 
     let _ = result.index_put_(&[Some(xs_tensor), Some(ys_tensor)], &vals_tensor, false);
-    let sum = result.sum(None);
-    result / sum
+    let sum = result.sum_dim_intlist(1, true, None);
+    result.divide(&sum)
 }
 
-pub fn turn_policy_to_probs_tensor_parallel<T: LearnableGame>(store: &NodeStore<T>, node_indices: Vec<usize>, policy: &Tensor) -> Tensor {
+pub fn turn_policy_to_probs_tensor_parallel<T: LearnableGame>(store: &NodeStore<T>, node_indices: &[usize], policy: &Tensor) -> Tensor {
     let mut mask = policy.zeros_like();
     let (xs, ys): (Vec<i32>, Vec<i32>) = node_indices.iter().flat_map(|i| {
         let node = store.get_node_ref(*i);
@@ -66,8 +67,8 @@ pub fn turn_policy_to_probs_tensor_parallel<T: LearnableGame>(store: &NodeStore<
     }).unzip();
     let _ = mask.index_put_(&[Some(Tensor::from_slice(&xs)), Some(Tensor::from_slice(&ys))], &Tensor::from(1_f32), false);
     let selected_moves_tensor = policy * mask;
-    let moves_sum = selected_moves_tensor.sum(None);
-    selected_moves_tensor / moves_sum
+    let moves_sum = selected_moves_tensor.sum_dim_intlist(1, true, None);
+    selected_moves_tensor.divide(&moves_sum)
 }
 
 pub fn turn_policy_to_probs_tensor<T: LearnableGame>(policy: &Tensor, node: &Node<T>) -> Tensor {

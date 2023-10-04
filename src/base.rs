@@ -17,8 +17,15 @@ pub trait LearnableGame: Clone + Debug + DeserializeOwned + Serialize + Send + S
     const ACTION_SPACE_SIZE: i64;
     const N_INPUT_CHANNELS: i64;
     const CONV_OUTPUT_SIZE: i64; // The board size in backgammon there are 24 squares so 24
+    // Even though the bottom two parameters are 256 and 19 in original AlphaZero
+    // Some games like tictactoe are not so complex can can train faster with simpler models
+    // So the two parameters are Game specific
+    const N_FILTERS: i64;
+    const N_RES_BLOCKS: i64;
 
     fn new() -> Self;
+
+    fn name() -> String;
 
     fn get_valid_moves(&self) -> Vec<Self::Move>;
     fn apply_move(&mut self, action: &Self::Move);

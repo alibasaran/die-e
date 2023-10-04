@@ -16,9 +16,9 @@ use nanoid::nanoid;
 impl AlphaZero {
     pub fn learn_parallel<T: LearnableGame>(&mut self) {
         let run_id = nanoid!();
-        let runpath_base = format!("./data/run-{}", &run_id);
+        let runpath_base = format!("./data/{}/run-{}", &T::name(), &run_id);
         println!("Staring up run with run_id: {}", &run_id);
-        let _ = fs::create_dir(&runpath_base);
+        let _ = fs::create_dir_all(&runpath_base);
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
         )
@@ -35,11 +35,6 @@ impl AlphaZero {
         let pb_self_play = self.pb.add(
             ProgressBar::new(self.config.self_play_iterations as u64)
                 .with_message("Self play")
-                .with_style(sty.clone()),
-        );
-        let pb_train = self.pb.add(
-            ProgressBar::new(self.config.num_epochs as u64)
-                .with_message("Training")
                 .with_style(sty.clone()),
         );
 
@@ -74,13 +69,20 @@ impl AlphaZero {
             pb_self_play.set_message("Self-play finished");
 
             // Train
-            pb_train.reset();
+            let pb_train = self.pb.add(
+            ProgressBar::new(self.config.num_epochs as u64)
+                .with_message("Training")
+                .with_style(sty.clone()),
+            );
+
             for _ in 0..self.config.num_epochs {
                 self.train(&mut memory);
                 pb_train.inc(1);
             }
+            // assert if all variables of the model is still non-nan, nan's caused by gradient explosion
+            assert!(self.model.vs.variables().iter().all(|(_, t)| !t.isnan().sum(tch::Kind::Float).is_nonzero()), "nan variables detected!");
             // Save model
-            let model_save_path = format!("./models/model_{}.ot", l_i);
+            let model_save_path = format!("./models/{}/model_{}.ot", &T::name(), l_i);
             match self.model.vs.save(&model_save_path) {
                 Ok(_) => println!(
                     "Iteration {} saved successfully, path: {}",
@@ -158,7 +160,7 @@ impl AlphaZero {
             let roots = (0..states.len())
                 .map(|i| store.get_node_ref(i))
                 .collect_vec();
-            let prob_tensor = get_prob_tensor_parallel(&roots)
+            let prob_tensor = get_prob_tensor_parallel(&roots, &store)
                 .pow_(1.0 / self.config.temperature) // Apply temperature
                 .to_device(tch::Device::Cpu); // Move to CPU for faster access
 
@@ -211,7 +213,7 @@ impl AlphaZero {
 
                 if let Some(winner) = state.check_winner() {
                     let curr_memory = memories[*init_idx].iter().map(|mem| MemoryFragment {
-                        outcome: if mem.outcome == winner { 1 } else { -1 },
+                        outcome: if winner == 0 {0} else if mem.outcome == winner { 1 } else { -1 },
                         ps: mem.ps.shallow_clone(),
                         state: mem.state.shallow_clone(),
                     });

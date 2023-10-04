@@ -11,12 +11,6 @@ pub type Board = ([i8; 24], (u8, u8), (u8, u8));
 // (from, to) if to == -1 then it is collection, if from == -1 then it is putting a hit piece back
 pub type Actions = Vec<(i8, i8)>;
 
-// Player1 should always be -1 and Player2 should always be 1
-#[repr(i8)]
-pub enum Player {
-    ONE = -1,
-    TWO = 1,
-}
 
 #[derive(Debug)]
 pub struct ActionNode {
@@ -80,6 +74,8 @@ impl LearnableGame for Backgammon {
     const ACTION_SPACE_SIZE: i64 = 1352;
     const N_INPUT_CHANNELS: i64 = 6;
     const CONV_OUTPUT_SIZE: i64 = 24;
+    const N_FILTERS: i64 = 256;
+    const N_RES_BLOCKS: i64 = 19;
 
     fn new() -> Self {
         Backgammon {
@@ -95,6 +91,10 @@ impl LearnableGame for Backgammon {
             is_second_play: false,
             id: 0,
         }
+    }
+
+    fn name() -> String {
+        String::from("backgammon")
     }
 
     fn roll_die(&mut self) -> (u8, u8) {
