@@ -84,7 +84,7 @@ enum LearnableGames {
 }
 
 fn main() {
-    // let kill = true;
+    let kill = true;
     // let nnet1 = ResNet::from_path::<TicTacToe>(&PathBuf::from("./models/tictactoe/best_model.ot"));
     // let nnet2 = ResNet::from_path::<TicTacToe>(&PathBuf::from("./models/tictactoe/model_15.ot"));
     // let nnet2_vars = nnet2.vs.variables();
@@ -104,13 +104,14 @@ fn main() {
     // ttt.board = [
     //     -1, 0, 0,
     //     1, 1, 0, 
-    //     -1, 0, 0
+    //     -1, 0, 1
     // ];
     // for (k, t) in nnet1.vs.variables().iter() {
     //     t.print()
     // }
-    // let policy = nnet1.forward_policy(&ttt.as_tensor().to_device(*DEVICE), false);
+    // let (policy, eval) = nnet1.forward_t(&ttt.as_tensor().to_device(*DEVICE), false);
     // policy.print();
+    // eval.print();
     // if kill {
     //     return;
     // }

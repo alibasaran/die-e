@@ -121,11 +121,13 @@ impl ResNet {
         let new_x = xs
             .apply_t(&self.init_block, train)
             .apply_t(&self.res_layer, train);
+        
         let policy = new_x
             .apply_t(&self.policy_head, train)
             .softmax(1, None);
 
-        let value = new_x.apply_t(&self.value_head, train);
+        let value = new_x
+            .apply_t(&self.value_head, train);
 
         (policy, value)
     }
@@ -136,10 +138,11 @@ impl ResNet {
         let new_x = xs
             .apply_t(&self.init_block, train)
             .apply_t(&self.res_layer, train);
+        
         let policy = new_x
             .apply_t(&self.policy_head, train);
-
-        let value = new_x.apply_t(&self.value_head, train);
+        let value = new_x
+            .apply_t(&self.value_head, train);
 
         (policy, value)
     }

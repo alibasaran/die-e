@@ -87,8 +87,9 @@ impl <T: LearnableGame> Node<T>{
         match self.parent {
             Some(parent_idx) => {
                 let parent = store.get_node(parent_idx);
-                let q_value = self.value.div(self.visits);
-                q_value + (c * parent.visits.ln().div(self.visits).sqrt())
+                let exploitation = self.value / self.visits;
+                let exploration = (c * parent.visits.ln() / self.visits).sqrt();
+                exploitation + exploration
             }
             None => f32::INFINITY,
         }
@@ -118,9 +119,8 @@ impl <T: LearnableGame> Node<T>{
         if self.expandable_moves.is_empty() {
             panic!("expand() called on node with no expandable moves")
         }
-        let move_idx = rand::thread_rng().gen_range(0..self.expandable_moves.len());
 
-        let action_taken = self.expandable_moves.remove(move_idx);
+        let action_taken = self.expandable_moves.pop().unwrap();
         let mut next_state = self.state;
         next_state.apply_move(&action_taken);
 
@@ -173,21 +173,25 @@ impl <T: LearnableGame> Node<T>{
         store.set_node(self);
     }
 
-    pub fn simulate(&mut self, player: i8, sim_limit: usize) -> f32 {
+    pub fn simulate(&self, player: i8, sim_limit: usize) -> f32 {
         let mut rng = rand::thread_rng();
         let mut curr_state = self.state;
 
         for _ in 0..sim_limit {
             if let Some(winner) = self.state.check_winner() {
-                return (((winner / player) + 1) / 2) as f32;
+                return if winner == player {1.}
+                else if winner == -player {-1.}
+                else {0.};
             }
             let valid_moves = curr_state.get_valid_moves();
 
             if !valid_moves.is_empty() {
                 let move_to_play = valid_moves.choose(&mut rng).unwrap();
                 curr_state.apply_move(move_to_play);
+            } else {
+                curr_state.skip_turn();
             }
         }
-        rng.gen_range(0..=1) as f32
+        0.
     }
 }
