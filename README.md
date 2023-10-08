@@ -1,10 +1,10 @@
-# die-e - AlphaZero for Backgammon and Tic-Tac-Toe
+# die-e - AlphaZero for Backgammon
 
-**die-e** is a Rust-based project that implements the AlphaZero algorithm for two classic games: Backgammon and Tic-Tac-Toe. The project's name, "die-e," is a playful reference to the Turkish word "dayi," which often refers to the best players in the family. Just like a skilled uncle in a family, this project aims to master these games through AI-powered learning.
+**die-e** is a Rust-based project that primarily focuses on implementing the AlphaZero algorithm for the classic game of Backgammon. The project's name, "die-e," is a playful reference to the Turkish word "dayi," which often refers to the best players in the family. Just like a skilled uncle in a family, this project aims to master Backgammon through AI-powered learning.
 
 ## Overview
 
-The core functionality of **die-e** is to apply the AlphaZero algorithm to learn and play Backgammon and Tic-Tac-Toe. It also provides a command-line interface (CLI) that allows you to configure and control various aspects of the learning and playing process.
+The core functionality of **die-e** is to apply the AlphaZero algorithm to learn and play Backgammon. Additionally, it offers the capability to play Tic-Tac-Toe using the same AI model.
 
 ## CLI Arguments
 
@@ -91,10 +91,10 @@ Here are the main CLI arguments and commands that **die-e** supports:
     die-e learn --game backgammon --model_path my_custom_model.pth
     ```
 
-2. To play a game of Tic-Tac-Toe between a random agent and a model agent and save the game:
+2. To play a game of Backgammon between a random agent and a model agent and save the game:
 
     ```shell
-    die-e play --game tictactoe --agent_one random --agent_two model --model_path_two my_model.pth --output_path game_output.json
+    die-e play --game backgammon --agent_one random --agent_two model --model_path_two my_model.pth --output_path game_output.json
     ```
 
 3. To initiate the training process for Backgammon using a specific model and save the trained model:
@@ -109,4 +109,4 @@ Here are the main CLI arguments and commands that **die-e** supports:
     die-e replay --game_path saved_game.json
     ```
 
-**die-e** provides flexible options to learn, play, train, and replay games, making it a versatile tool for experimenting with the AlphaZero algorithm in the context of Backgammon and Tic-Tac-Toe.
+**die-e** primarily focuses on mastering the game of Backgammon using the AlphaZero algorithm, with Tic-Tac-Toe available as a secondary feature for some additional fun.
