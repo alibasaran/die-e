@@ -61,7 +61,7 @@ Here are the main CLI arguments and commands that **die-e** supports:
     
     - `--model_path_two`: Path to the model for Agent Two (if applicable).
     
-    - `--output_path`: Path to save the output game.
+    - `--output_path`: Path (dir) to save the output game.
 
 #### 3. Train:
 
@@ -94,7 +94,7 @@ Here are the main CLI arguments and commands that **die-e** supports:
 2. To play a game of Backgammon between a random agent and a model agent and save the game:
 
     ```shell
-    die-e --game backgammon play --agent_one random --agent_two model --model_path_two my_model.ot --output_path game_output.json
+    die-e --game backgammon play --agent_one random --agent_two model --model_path_two my_model.ot --output_path game_output
     ```
 
 3. To initiate the training process for Backgammon using a specific model and save the trained model:
