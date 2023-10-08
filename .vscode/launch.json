@@ -29,6 +29,28 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'die-e learn'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=die-e",
+                    "--package=die-e"
+                ],
+                "filter": {
+                    "name": "die-e",
+                    "kind": "bin"
+                }
+            },
+            "args": ["--game=tic-tac-toe", "--n-cpus=8",  "learn"],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LIBTORCH": "${workspaceFolder}/torch",
+                "DYLD_LIBRARY_PATH": "${workspaceFolder}/torch/lib",
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'die-e'",
             "cargo": {
                 "args": [
@@ -44,6 +66,6 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
-        }
+        },
     ]
 }

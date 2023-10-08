@@ -150,6 +150,7 @@ impl AlphaZero {
                 &self.mcts_config,
                 Some(mcts_pb),
             );
+            
             mcts_runs += 1;
             // processed idx: the index of the state in remaining processed states
             // init_idx: the index of the state in the initial creation of the states vector
@@ -213,7 +214,7 @@ impl AlphaZero {
 
                 if let Some(winner) = state.check_winner() {
                     let curr_memory = memories[*init_idx].iter().map(|mem| MemoryFragment {
-                        outcome: if winner == 0 {0} else if mem.outcome == winner { 1 } else { -1 },
+                        outcome: if winner == mem.outcome {1} else if winner == -mem.outcome {-1} else {0},
                         ps: mem.ps.shallow_clone(),
                         state: mem.state.shallow_clone(),
                     });

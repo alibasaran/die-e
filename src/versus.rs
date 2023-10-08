@@ -1,5 +1,5 @@
 use std::{path::{Path, PathBuf}, fs::{File, self}, io::Write, time::Duration, collections::HashMap, fmt};
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
+use indicatif::{ProgressBar, ProgressStyle, MultiProgress, ProgressDrawTarget};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
@@ -247,8 +247,6 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
             let initial_idx = game.get_id();
             let (game_mut, curr_game) = games.get_mut(&initial_idx).unwrap();
 
-            // let player_type = if game_mut.get_player() == -1 {player1.player_type.clone()} else {player2.player_type.clone()};
-            // curr_game.turns.push(Turn { roll: game_mut.roll, player: player_type, action: action.clone() });
             if action.eq(&T::EMPTY_MOVE) {
                 game_mut.skip_turn();
                 continue;
@@ -256,6 +254,7 @@ pub fn play<T: LearnableGame>(player1: Player, player2: Player, mcts_config: &Mc
             assert!(game_mut.get_valid_moves().contains(action));
 
             game_mut.apply_move(action);
+
             let winner = match game_mut.check_winner() {
                 Some(winner) => Some(winner),
                 None if round_count >= round_limit => Some(0),

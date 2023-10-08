@@ -33,3 +33,5 @@ Cargo.lock
 !/models/.gitkeep
 /data/*
 !/data/.gitkeep
+
+config.toml

@@ -228,7 +228,6 @@ impl AlphaZero {
                 false,
                 false,
             );
-
             
             let state_tensor = Tensor::stack(&states, 0).squeeze_dim(1).to_device_(
                 *DEVICE,
@@ -248,21 +247,12 @@ impl AlphaZero {
                 0.0,
             );
             let outcome_loss = out_value.mse_loss(&outcome_tensor, tch::Reduction::Mean);
+
             assert!(!outcome_tensor.isnan().sum(None).is_nonzero() && !outcome_tensor.isinf().sum(None).is_nonzero(), "Outcome is nan or inf!");
             assert!(!policy_loss.isnan().sum(None).is_nonzero() && !policy_loss.isinf().sum(None).is_nonzero(), "Policy is nan or inf!");
-            // outcome_tensor.print();
-            // if outcome_loss.isnan().is_nonzero() || outcome_loss.isinf().is_nonzero() {
-            //     println!("Outcome loss");
-            //     outcome_loss.print();
-            //     println!("Outcomes: {:?}", outcomes);
-            //     println!("Here");
-            // }
-            // outcome_loss.print();
+            
             let loss = policy_loss + outcome_loss;
-            // loss.print();
             assert!(!loss.isnan().sum(None).is_nonzero() && !loss.isinf().sum(None).is_nonzero(), "Total loss is nan or inf!");
-
-            // loss.print();
 
             self.optimizer.zero_grad();
             loss.backward();

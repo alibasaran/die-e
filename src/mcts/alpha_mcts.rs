@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{cmp::Ordering, collections::{HashSet, HashMap}};
 
 
 use indicatif::{ProgressIterator, ProgressBar};
@@ -136,7 +136,9 @@ pub fn alpha_mcts_parallel<T: LearnableGame>(store: &mut NodeStore<T>, states: &
                 - selected_nodes[i] refers to the node that was last selected for game[i]
 
     */
-    let mut games: HashSet<usize> = HashSet::from_iter(0..states.len());
+    let games: HashSet<usize> = HashSet::from_iter(0..states.len());
+
+    // Game id to node idx mapping
     let mut selected_nodes_idxs = vec![0; states.len()];
 
     let pb = match pb {
@@ -145,35 +147,36 @@ pub fn alpha_mcts_parallel<T: LearnableGame>(store: &mut NodeStore<T>, states: &
     };
 
     for _ in 0..mcts_config.iterations {
-        let mut ended_games = vec![];
-        for game_idx in games.iter() {
-            let idx = alpha_select_leaf_node(*game_idx, store, mcts_config.c);
+        // Clear selected node indices
+        let mut node_selected = false;
+        pb.inc(1);
+        for &game_idx in games.iter() {
+            let idx = alpha_select_leaf_node(game_idx, store, mcts_config.c);
             let selected_node = store.get_node(idx);
-    
+            
             if let Some(winner) = selected_node.state.check_winner() {
-                let value = ((winner + 1) / 2) as f32;
-                backpropagate(idx, value, store);
-                ended_games.push(*game_idx);
+                let game_root = store.get_node(game_idx);
+                let root_player = game_root.state.get_player();
+                let value = if winner == root_player {1.}
+                    else if winner == -root_player {-1.}
+                    else {0.};
+                backpropagate(idx, value as f32, store);
             } else {
-                selected_nodes_idxs[*game_idx] = selected_node.idx
+                node_selected = true;
+                selected_nodes_idxs[game_idx] = selected_node.idx;
             }
         }
 
-        // Remove finished games
-        for game_to_remove in ended_games {
-            games.remove(&game_to_remove);
+        if !node_selected {
+            continue;
         }
-
-        // No games to search, end search
-        if games.is_empty() {
-            return
-        }
-        
-        // Convert ongoing (not terminal) games into a tensor
-        let selected_states_vec = games.iter().map(|idx| {
-            let node = store.get_node(selected_nodes_idxs[*idx]);
+            
+        // Convert ongoing (not terminal) games into a tensor vec
+        let selected_states_vec = selected_nodes_idxs.iter().map(|node_idx| {
+            let node = store.get_node(*node_idx);
             node.state.as_tensor()
         }).collect_vec();
+
         let selected_states_tensor = Tensor::stack(
             &selected_states_vec,
             0
@@ -185,15 +188,15 @@ pub fn alpha_mcts_parallel<T: LearnableGame>(store: &mut NodeStore<T>, states: &
         // Expand and backprop selected nodes with their respective calculated policies and evals
         let eval = eval.to_device(tch::Device::Cpu);
         let policy = policy.to_device(tch::Device::Cpu);
-        for (i, game) in games.iter().enumerate() {
-            let mut node = store.get_node(selected_nodes_idxs[*game]);
-            let (policy_i, eval_i) = (policy.get(i as i64), eval.get(i as i64));
+
+        for (processed_idx, &node_idx) in selected_nodes_idxs.iter().enumerate() {
+            let mut node = store.get_node(node_idx);
+            let (policy_i, eval_i) = (policy.get(processed_idx as i64), eval.get(processed_idx as i64));
             let prob_tensor = turn_policy_to_probs_tensor(&policy_i, &node);
-            // Expand root
+            // Expand selected node
             node.alpha_expand_tensor(store, &prob_tensor);
             let value = eval_i.double_value(&[0]) as f32;
             backpropagate(node.idx, value, store);
         }
-        pb.inc(1)
     }
 }

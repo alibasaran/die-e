@@ -35,7 +35,6 @@ pub fn mct_search<T: LearnableGame>(state: T, player: i8, mcts_config: &MctsConf
             backpropagate(new_node_idx, value, &mut store)
         }
     }
-    store.pretty_print(0, 1, mcts_config.c);
     select_most_visits(root_node_idx, &store)
 }
 
