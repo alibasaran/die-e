@@ -1,5 +1,5 @@
 
-use config::{Config};
+use config::Config;
 use indicatif::MultiProgress;
 use itertools::{multiunzip, Itertools};
 use rand::{distributions::WeightedIndex, prelude::Distribution, seq::SliceRandom, thread_rng};

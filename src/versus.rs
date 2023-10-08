@@ -1,5 +1,5 @@
 use std::{path::{Path, PathBuf}, fs::{File, self}, io::Write, time::Duration, collections::HashMap, fmt};
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress, ProgressDrawTarget};
+use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
@@ -120,33 +120,6 @@ pub fn load_all_games<T: LearnableGame>(path: PathBuf) -> Result<Vec<Game<T>>, B
 
     Ok(games)
 }
-
-// pub fn print_all_game_winners() {
-//     let games_directory = "./games/mcts_vs_random";
-//     if let Ok(games) = load_all_games(games_directory) {
-//         println!("Loaded {} games successfully!\n", games.len());
-//         for (_, game) in games.iter().enumerate() {
-//             println!("Game {}:", &game.id);
-//             println!("\t Winner: {:?}", game.winner)
-//         }
-//     } else {
-//         eprintln!("Error loading games from directory: {}", games_directory);
-//     }
-// }
-
-// pub fn print_out_game(directory: &str, filename: &str) {
-//     let game = load_game(directory, filename).unwrap();
-//     let mut curr_state = game.initial_state;
-//     println!("Player1: {:?} Player 2: {:?}", game.player1, game.player2);
-//     println!("Turns played: {}", &game.turns.len());
-//     for (idx, turn) in game.turns.iter().enumerate() {
-//         let _player = if idx % 2 == 0 {-1} else {1};
-//         println!("[{}] {:?}", idx, turn);
-//         curr_state.apply_move(&turn.action);
-//         curr_state.display_board();
-//     }
-//     println!("Winner: {:?}", game.winner)
-// }
 
 pub struct Player {
     pub player_type: Agent,

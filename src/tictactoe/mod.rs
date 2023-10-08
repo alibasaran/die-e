@@ -1,6 +1,3 @@
-mod tictactoe_test;
-
-use itertools::Itertools;
 use serde::{Serialize, Deserialize};
 
 use crate::{base::LearnableGame, constants::DEFAULT_TYPE};

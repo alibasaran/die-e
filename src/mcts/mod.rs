@@ -4,4 +4,3 @@ pub mod simple_mcts;
 pub mod alpha_mcts;
 pub mod utils;
 mod noise;
-mod mcts_test;

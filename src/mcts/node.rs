@@ -1,5 +1,5 @@
 use crate::base::LearnableGame;
-use rand::{seq::SliceRandom, Rng};
+use rand::seq::SliceRandom;
 use tch::Tensor;
 use std::ops::Div;
 

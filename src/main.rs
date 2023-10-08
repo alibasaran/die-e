@@ -5,13 +5,12 @@ use std::{
 
 use config::Config;
 use die_e::{
-    alphazero::{alphazero::{AlphaZero, MemoryFragment}, nnet::ResNet}, MctsConfig, versus::{Agent, Player, play, save_game, print_game, PlayResult}, backgammon::backgammon_logic::Backgammon, tictactoe::TicTacToe, base::LearnableGame, constants::DEVICE
+    alphazero::{alphazero::{AlphaZero, MemoryFragment}, nnet::ResNet}, MctsConfig, versus::{Agent, Player, play, save_game, print_game, PlayResult}, backgammon::backgammon_logic::Backgammon, tictactoe::TicTacToe, base::LearnableGame
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 
 use clap::{Parser, Subcommand, ValueEnum};
-use tch::nn::VarStore;
 
 #[derive(Parser)]
 struct Args {
@@ -84,34 +83,6 @@ enum LearnableGames {
 }
 
 fn main() {
-    // let kill = true;
-    // let nnet1 = ResNet::from_path::<TicTacToe>(&PathBuf::from("./models/tictactoe/best_model.ot"));
-    // // let nnet2 = ResNet::from_path::<TicTacToe>(&PathBuf::from("./models/tictactoe/model_15.ot"));
-    // // let nnet2_vars = nnet2.vs.variables();
-    // // println!("All var names: {:?}", nnet2_vars.keys());
-    // // for (k, t) in nnet1.vs.variables().iter() {
-    // //     let nnet_var = nnet2_vars.get(k).unwrap();
-    // //     nnet_var.print();
-    // //     assert!(!t.isnan().sum(tch::Kind::Float).is_nonzero(), "Best model panic {}", k);
-    // //     assert!(!nnet_var.isnan().sum(tch::Kind::Float).is_nonzero(), "Model 1 panic {}", k);
-    //     // println!("{}", t.equal(nnet_var));
-    //     // if  {
-    //     //     println!("Two tensors are equal, tensor name: {}", k);
-    //     // }
-    // // }
-    // let mut ttt = TicTacToe::new();
-    // ttt.board = [
-    //     -1, -1, 0,
-    //     1, 1, 0, 
-    //     -1, 1, -1
-    // ];
-    // let (policy, eval) = nnet1.forward_t(&ttt.as_tensor().to_device(*DEVICE), false);
-    // policy.print();
-    // eval.print();
-    // if kill {
-    //     return;
-    // }
-
     let args = Args::parse();
 
     // Load config

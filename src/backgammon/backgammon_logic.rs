@@ -426,55 +426,6 @@ impl Backgammon {
         }
     }
 
-    pub fn display_board(&self) {
-        let (points, pieces_hit, pieces_collected) = self.board;
-        let mut total_player_1 = 0;
-        let mut total_player_2 = 0;
-
-        // Display the main board
-        for point in 13..=24 {
-            if points[point as usize - 1] < 0 {
-                total_player_1 -= points[point as usize - 1];
-            } else if points[point as usize - 1] > 0 {
-                total_player_2 += points[point as usize - 1];
-            }
-            if point == 19 {
-                print!("|");
-            }
-            print!("{:3} ", points[point as usize - 1]);
-        }
-
-        println!("\n");
-        println!("------------------------------------------------");
-        println!();
-
-        for point in (1..=12).rev() {
-            if points[point as usize - 1] < 0 {
-                total_player_1 -= points[point as usize - 1];
-            } else if points[point as usize - 1] > 0 {
-                total_player_2 += points[point as usize - 1];
-            }
-            if point == 6 {
-                print!("|");
-            }
-            print!("{:3} ", points[point as usize - 1]);
-        }
-        println!("\n");
-
-        // Display hit pieces and collected pieces
-        println!(
-            "Hit: ({}, {})   Collected: ({}, {})",
-            pieces_hit.0, pieces_hit.1, pieces_collected.0, pieces_collected.1
-        );
-
-        total_player_1 += pieces_hit.0 as i8;
-        total_player_1 += pieces_collected.0 as i8;
-        total_player_2 += pieces_hit.1 as i8;
-        total_player_2 += pieces_collected.1 as i8;
-        println!("Total pieces: ({}, {})", total_player_1, total_player_2);
-        println!("\n");
-    }
-
     /**
      * Checks if current board is valid by asserting that 
      * both players have 15 pieces on the board including collected and barred ones.
@@ -589,21 +540,6 @@ impl Backgammon {
             state.1 .1
         }
     }
-
-    // pub fn get_valid_moves(&self) -> Vec<Actions> {
-    //     assert!(self.roll != (0, 0), "die has not been rolled!");
-
-    //     let all_moves: Vec<u8> = match self.roll {
-    //         (r0, r1) if r0 == r1 => vec![r0; 4],
-    //         (r0, r1) if r0 > r1 => vec![r0, r1],
-    //         (r0, r1) => vec![r1, r0],
-    //     };
-    //     let action_trees = Self::_get_action_trees(&all_moves, self.board, self.player);
-    //     // parse trees into actions here
-    //     let actions = Self::extract_sequences_list(action_trees);
-    //     Self::remove_duplicate_states(self.board, actions, self.player)
-    // }
-
 
     fn _get_action_trees(moves: &[u8], state: Board, player: i8) -> Vec<ActionNode> {
         let num_pieces_hit = Self::get_pieces_hit(state, player);

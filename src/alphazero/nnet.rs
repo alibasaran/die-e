@@ -2,7 +2,7 @@ use std::{ops::Add, path::PathBuf};
 
 use tch::{
     nn::{self, VarStore},
-    Device, Tensor,
+    Tensor,
 };
 
 use crate::{constants::DEVICE, base::LearnableGame};

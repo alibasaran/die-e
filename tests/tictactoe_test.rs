@@ -1,5 +1,5 @@
-
-use crate::{tictactoe::TicTacToe, base::LearnableGame};
+use die_e::tictactoe::TicTacToe;
+use die_e::base::LearnableGame;
 
 #[cfg(test)]
 mod initializes_as_expected {

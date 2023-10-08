@@ -1,9 +1,7 @@
-use crate::{
-    tictactoe::TicTacToe,
-    mcts::node_store::NodeStore,
-    base::LearnableGame,
-    constants::{DEFAULT_TYPE, DEVICE}
-};
+use die_e::tictactoe::TicTacToe;
+use die_e::mcts::node_store::NodeStore;
+use die_e::base::LearnableGame;
+use die_e::constants::{DEFAULT_TYPE, DEVICE};
 use tch::{Tensor, Device};
 
 mod tests_util {
@@ -13,7 +11,7 @@ mod tests_util {
     mod turn_policy_to_probs_tensor {
 
         use super::*;
-        use crate::mcts::utils::turn_policy_to_probs_tensor_parallel;
+        use die_e::mcts::utils::turn_policy_to_probs_tensor_parallel;
 
         #[test]
         fn works_as_expected() {
@@ -37,7 +35,7 @@ mod tests_util {
 
     mod get_prob_tensor {
         use super::*;
-        use crate::mcts::utils::get_prob_tensor_parallel;
+        use die_e::mcts::utils::get_prob_tensor_parallel;
 
         #[test]
         fn works_as_expected() {

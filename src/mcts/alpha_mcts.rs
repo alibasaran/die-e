@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::{HashSet, HashMap}};
+use std::{cmp::Ordering, collections::HashSet};
 
 
 use indicatif::{ProgressIterator, ProgressBar};

@@ -1,19 +1,10 @@
-use std::{collections::HashMap, path::{Path, PathBuf}};
+use std::path::PathBuf;
 
-use indicatif::{ProgressBar, ProgressStyle};
-
-use rand::{seq::SliceRandom, thread_rng};
 use tch::nn::VarStore;
 
 use crate::{
-    backgammon::backgammon_logic::{Backgammon},
     base::LearnableGame,
-    constants::DEVICE,
-    mcts::{
-        alpha_mcts::{alpha_mcts, alpha_mcts_parallel},
-        node_store::NodeStore,
-        utils::get_prob_tensor_parallel,
-    }, versus::{play, Player, Agent},
+    constants::DEVICE, versus::{play, Player, Agent},
 };
 
 use super::{alphazero::AlphaZero, nnet::ResNet};
