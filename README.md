@@ -47,7 +47,7 @@ Here are the main CLI arguments and commands that **die-e** supports:
 
 - `Learn`: Starts the learning process.
 
-    - `--model_path`: Path to the model.
+    - `--model_path`: Path to the model that should learn.
 
 #### 2. Play:
 
@@ -88,19 +88,19 @@ Here are the main CLI arguments and commands that **die-e** supports:
 1. To start the learning process for Backgammon with a custom model path:
 
     ```shell
-    die-e learn --game backgammon --model_path my_custom_model.pth
+    die-e --game backgammon learn --model_path my_custom_model.ot
     ```
 
 2. To play a game of Backgammon between a random agent and a model agent and save the game:
 
     ```shell
-    die-e play --game backgammon --agent_one random --agent_two model --model_path_two my_model.pth --output_path game_output.json
+    die-e --game backgammon play --agent_one random --agent_two model --model_path_two my_model.ot --output_path game_output.json
     ```
 
 3. To initiate the training process for Backgammon using a specific model and save the trained model:
 
     ```shell
-    die-e train --game backgammon --model_path my_model.pth --out_path trained_model.pth --run_id my_run --learn 1 --self_play 2
+    die-e --game backgammon train --model_path my_model.ot --out_path trained_model.ot --run_id my_run --learn 1 --self_play 2
     ```
 
 4. To replay a saved game:
